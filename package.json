@@ -1,0 +1,39 @@
+{
+  "name": "the-gentlemens-club",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "db:seed": "node scripts/seed.mjs"
+  },
+  "dependencies": {
+    "@auth/mongodb-adapter": "^3.10.0",
+    "bcryptjs": "^2.4.3",
+    "lucide-react": "^0.468.0",
+    "mongodb": "^6.12.0",
+    "next": "14.2.35",
+    "next-auth": "^5.0.0-beta.25",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/node": "^22.10.2",
+    "@types/react": "^18.3.18",
+    "@types/react-dom": "^18.3.5",
+    "autoprefixer": "^10.4.20",
+    "eslint": "^8.57.1",
+    "eslint-config-next": "14.2.35",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.17",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}

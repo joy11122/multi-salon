@@ -1,0 +1,4 @@
+import { BookingForm } from '@/components/booking-form';
+import { auth } from '@/lib/auth';
+export const metadata = { title: 'Book an Appointment | The Gentlemen’s Club' };
+export default async function BookingPage() { const session=await auth(); return <main className="min-h-screen px-5 py-16 md:px-10 md:py-24"><div className="mx-auto max-w-6xl"><p className="eyebrow">RESERVE YOUR CHAIR · KHULNA</p><h1 className="serif mt-4 text-5xl md:text-6xl">Make time for <span className="gold italic">yourself.</span></h1><p className="mt-5 max-w-xl text-sm leading-7 text-[#a5a098]">Choose your service, barber and preferred time. We’ll be in touch to confirm your visit.</p><div className="mt-12"><BookingForm defaultName={session?.user?.name||''} defaultEmail={session?.user?.email||''}/></div></div></main>; }
