@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import './globals.css';
 import { SiteHeader } from '@/components/site-header';
 import { SiteFooter } from '@/components/site-footer';
+import { auth } from '@/lib/auth';
 
 const siteUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://example.com';
 export const metadata: Metadata = {
@@ -12,6 +13,9 @@ export const metadata: Metadata = {
   robots: { index: true, follow: true },
 };
 
-export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="en"><body><SiteHeader />{children}<SiteFooter /></body></html>;
+export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+  const session = await auth();
+  const role = session?.user?.role;
+  const dashboardHref = role === 'ADMIN' ? '/admin' : role === 'STAFF' ? '/staff' : session?.user ? '/dashboard' : null;
+  return <html lang="en"><body><SiteHeader userName={session?.user?.name} dashboardHref={dashboardHref}/>{children}<SiteFooter /></body></html>;
 }
