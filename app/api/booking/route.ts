@@ -63,7 +63,7 @@ export async function POST(request: Request) {
         await session.withTransaction(async () => {
           const conflicting = await db.collection('appointments').findOne({ salonId: SALON_ID, staffId: barber._id, status: { $nin: ['CANCELLED', 'REJECTED'] }, startAt: { $lt: endAt }, endAt: { $gt: startAt } }, { session, projection: { _id: 1 } });
           if (conflicting) throw Object.assign(new Error('Selected barber is no longer available.'), { code: 'SLOT_BUSY' });
-          const phone = input.phone.replace(/^\\+?88/, '0');
+          const phone = input.phone.replace(/^\+?88/, '0');
           const customer = await db.collection('customers').findOneAndUpdate(
             { phone },
             { $set: { name: input.customerName, email: bookingEmail, updatedAt: new Date() }, $setOnInsert: { salonId: SALON_ID, phone, createdAt: new Date() } },
