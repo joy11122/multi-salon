@@ -6,14 +6,22 @@ import { ensureIndexes } from '@/lib/db/indexes';
 import { bookingSchema } from '@/lib/validations/booking';
 import { SALON_ID, addMinutes, bookingReference, toDhakaDateTime, getDhakaDate } from '@/lib/utils';
 import { rateLimit } from '@/lib/rate-limit';
+import { findActiveSalonBySlug } from '@/lib/tenancy';
 
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
+    let salonId = SALON_ID;
+    const salonSlug = searchParams.get('salonSlug');
+    if (salonSlug) {
+      const salon = await findActiveSalonBySlug(salonSlug);
+      if (!salon) return NextResponse.json({ error: 'Salon not found.' }, { status: 404 });
+      salonId = String(salon.salonId);
+    }
     const db = await getDb();
     const [services, staff] = await Promise.all([
-      db.collection('services').find({ salonId: SALON_ID, active: true }).project({ name: 1, description: 1, price: 1, durationMinutes: 1, category: 1 }).sort({ sortOrder: 1 }).toArray(),
-      db.collection('staff').find({ salonId: SALON_ID, active: true }).project({ name: 1, title: 1, specialties: 1 }).sort({ name: 1 }).toArray(),
+      db.collection('services').find({ salonId, active: true }).project({ name: 1, description: 1, price: 1, durationMinutes: 1, category: 1 }).sort({ sortOrder: 1 }).toArray(),
+      db.collection('staff').find({ salonId, active: true }).project({ name: 1, title: 1, specialties: 1 }).sort({ name: 1 }).toArray(),
     ]);
     const date = searchParams.get('date');
     return NextResponse.json({ services, staff, date });
@@ -31,6 +39,12 @@ export async function POST(request: Request) {
     const parsed = bookingSchema.safeParse(await request.json());
     if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0]?.message || 'Invalid booking details.' }, { status: 400 });
     const input = parsed.data;
+    let salonId = SALON_ID;
+    if (input.salonSlug) {
+      const salon = await findActiveSalonBySlug(input.salonSlug);
+      if (!salon) return NextResponse.json({ error: 'Salon not found.' }, { status: 404 });
+      salonId = String(salon.salonId);
+    }
     const userSession = await auth();
     const accountEmail = userSession?.user?.email ? String(userSession.user.email).trim().toLowerCase() : '';
     const bookingEmail = accountEmail || String(input.email || '').trim().toLowerCase();
@@ -38,16 +52,18 @@ export async function POST(request: Request) {
     if (!ObjectId.isValid(input.serviceId)) return NextResponse.json({ error: 'Invalid service selection.' }, { status: 400 });
     const db = await getDb();
     await ensureIndexes();
-    const service = await db.collection('services').findOne({ _id: new ObjectId(input.serviceId), salonId: SALON_ID, active: true });
+    const service = await db.collection('services').findOne({ _id: new ObjectId(input.serviceId), salonId, active: true });
     if (!service) return NextResponse.json({ error: 'Selected service is no longer available.' }, { status: 404 });
-    const staffQuery: Record<string, unknown> = { salonId: SALON_ID, active: true };
+    const staffQuery: Record<string, unknown> = { salonId, active: true };
     if (input.staffId && input.staffId !== 'any') {
       if (!ObjectId.isValid(input.staffId)) return NextResponse.json({ error: 'Invalid barber selection.' }, { status: 400 });
       staffQuery._id = new ObjectId(input.staffId);
     }
     const staff = await db.collection('staff').find(staffQuery).toArray();
     if (!staff.length) return NextResponse.json({ error: 'No barber is currently available. Please choose another.' }, { status: 409 });
-    const settings = await db.collection('settings').findOne({ _id: 'salon' as never });
+    const settings = salonId === SALON_ID
+      ? await db.collection('settings').findOne({ _id: 'salon' as never })
+      : await db.collection('salonSettings').findOne({ salonId });
     const weekday = new Date(`${input.date}T06:00:00Z`).getUTCDay();
     const hours = settings?.openingHours?.[weekday] || { open: '10:00', close: '20:00', closed: false };
     if (hours.closed) return NextResponse.json({ error: 'The salon is closed on this day.' }, { status: 409 });
@@ -61,26 +77,26 @@ export async function POST(request: Request) {
     for (const barber of staff) {
       try {
         await session.withTransaction(async () => {
-          const conflicting = await db.collection('appointments').findOne({ salonId: SALON_ID, staffId: barber._id, status: { $nin: ['CANCELLED', 'REJECTED'] }, startAt: { $lt: endAt }, endAt: { $gt: startAt } }, { session, projection: { _id: 1 } });
+          const conflicting = await db.collection('appointments').findOne({ salonId, staffId: barber._id, status: { $nin: ['CANCELLED', 'REJECTED'] }, startAt: { $lt: endAt }, endAt: { $gt: startAt } }, { session, projection: { _id: 1 } });
           if (conflicting) throw Object.assign(new Error('Selected barber is no longer available.'), { code: 'SLOT_BUSY' });
           const phone = input.phone.replace(/^\+?88/, '0');
           const customer = await db.collection('customers').findOneAndUpdate(
-            { phone },
-            { $set: { name: input.customerName, email: bookingEmail, updatedAt: new Date() }, $setOnInsert: { salonId: SALON_ID, phone, createdAt: new Date() } },
+            { salonId, phone },
+            { $set: { name: input.customerName, email: bookingEmail, updatedAt: new Date() }, $setOnInsert: { salonId, phone, createdAt: new Date() } },
             { upsert: true, returnDocument: 'after', session },
           );
           const barberSlots: string[] = [];
           for (let minute = Math.floor(startAt.getTime() / 900000) * 900000; minute < endAt.getTime(); minute += 900000) barberSlots.push(new Date(minute).toISOString());
-          await db.collection('slotLocks').insertMany(barberSlots.map((slotKey) => ({ salonId: SALON_ID, staffId: barber._id, slotKey, appointmentRef: bookingRef, expiresAt: addMinutes(endAt, 24 * 60), createdAt: new Date() })), { session, ordered: true });
+          await db.collection('slotLocks').insertMany(barberSlots.map((slotKey) => ({ salonId, staffId: barber._id, slotKey, appointmentRef: bookingRef, expiresAt: addMinutes(endAt, 24 * 60), createdAt: new Date() })), { session, ordered: true });
           const appointment = {
-            salonId: SALON_ID, bookingRef, customerId: customer?._id, customerName: input.customerName, phone,
+            salonId, bookingRef, customerId: customer?._id, customerName: input.customerName, phone,
             email: bookingEmail, serviceId: service._id, serviceName: service.name, staffId: barber._id, staffName: barber.name, staffEmail: barber.email || '',
             price: Number(service.price), durationMinutes: Number(service.durationMinutes || 30), startAt, endAt,
             notes: input.notes, status: 'PENDING', paymentStatus: 'UNPAID', source: 'WEBSITE', createdAt: new Date(), updatedAt: new Date(),
           };
           const result = await db.collection('appointments').insertOne(appointment, { session });
           created = { ...appointment, _id: result.insertedId };
-          await db.collection('notifications').insertOne({ salonId: SALON_ID, type: 'NEW_BOOKING', title: 'New appointment request', body: `${input.customerName} requested ${service.name}`, read: false, createdAt: new Date() }, { session });
+          await db.collection('notifications').insertOne({ salonId, type: 'NEW_BOOKING', title: 'New appointment request', body: `${input.customerName} requested ${service.name}`, read: false, createdAt: new Date() }, { session });
         }, { readConcern: { level: 'snapshot' }, writeConcern: { w: 'majority' } });
         if (created) break;
       } catch (error) {

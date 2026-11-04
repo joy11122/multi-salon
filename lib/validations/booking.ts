@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 export const bookingSchema = z.object({
+  salonSlug: z.string().trim().min(3).max(60).optional(),
   serviceId: z.string().regex(/^[a-fA-F0-9]{24}$/, 'Invalid service selection.'),
   staffId: z.union([z.literal('any'), z.string().regex(/^[a-fA-F0-9]{24}$/, 'Invalid barber selection.')]).optional(),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine((value) => { const parsed = new Date(`${value}T00:00:00Z`); return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value; }, 'Enter a valid calendar date.'),

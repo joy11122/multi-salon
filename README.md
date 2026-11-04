@@ -5,6 +5,9 @@ Luxury men's grooming website and salon operations foundation for Khulna, Bangla
 ## Product scope
 
 - Public website: Home, About, Services, Barbers, Gallery, Booking and Contact.
+- Multi-salon directory and independent public profiles at `/salons` and `/salons/[slug]`.
+- Authenticated salon onboarding at `/dashboard/salons`; each owner gets a salon-scoped management workspace at `/salons/[slug]/admin`.
+- Tenant-scoped services, staff, customers, appointments, payments, settings and audit records; membership roles are OWNER, ADMIN, MANAGER and STAFF.
 - Guest booking: service → barber/any available → date/time → customer details → booking reference.
 - Availability in `Asia/Dhaka`; appointments are stored as UTC dates.
 - Transactional booking creation with 15-minute unique slot locks to prevent concurrent overlapping appointments for the same barber.
@@ -31,7 +34,7 @@ npm install
 cp .env.example .env.local
 ```
 
-Set at least `MONGODB_URI`, `AUTH_SECRET`, and `ADMIN_EMAILS` in `.env.local`. Configure Google OAuth credentials if Google sign-in is required. Set `NEXT_PUBLIC_APP_URL` to the correct origin.
+Set at least `MONGODB_URI`, `AUTH_SECRET`, and `ADMIN_EMAILS` in `.env.local`. Configure Google OAuth credentials if Google sign-in is required. Set `NEXT_PUBLIC_APP_URL` to the correct origin. `SALON_ID`, `SALON_SLUG` and `SALON_NAME` identify the legacy Gentlemen's Club tenant during migration.
 
 Seed initial sample services and default opening hours:
 
@@ -60,6 +63,15 @@ npm run lint
 npm test
 npm run build
 ```
+
+## Multi-tenant platform
+
+- Sign in and open `/dashboard/salons` to create a new salon workspace. The creator receives an OWNER membership for that salon.
+- Public salon profiles use `/salons/{slug}` and booking uses `/salons/{slug}/booking`.
+- Salon administration uses `/salons/{slug}/admin`; every resource API receives the same `salonSlug` and verifies an active membership for that exact salon before reading or changing data.
+- Salon-owned records are scoped by `salonId`. Customer phone uniqueness is scoped to `(salonId, phone)`, so the same person may be a customer of multiple salons.
+- The original `/admin` workspace remains the legacy single-salon administration route for the existing `SALON_ID`. New salons must use their slug-scoped workspace.
+- The existing production database must be migrated before the legacy salon appears in the public directory or its new slug-scoped workspace works. Take a verified backup, configure `SALON_ID`, `SALON_SLUG`, `SALON_NAME` and `ADMIN_EMAILS`, then run `npm run db:migrate:multi-tenant` for a dry run. Review the document counts and duplicate phone report. Only after the backup and review, run `node scripts/migrate-multi-tenant.mjs --apply` against the intended database. This migration assigns legacy records missing `salonId` to the legacy salon, copies settings, creates owner/staff memberships and replaces the global customer phone index. Never run `--apply` against a database containing unrelated applications or unreviewed tenant data.
 
 ## Booking consistency design
 
@@ -90,7 +102,9 @@ Email/password registration uses bcrypt hashing. Google OAuth is enabled only wh
 4. Set `NEXT_PUBLIC_APP_URL` and `AUTH_URL` to the production URL.
 5. Add the production callback URL to Google OAuth, for example `https://YOUR_DOMAIN/api/auth/callback/google`.
 6. Deploy, run the seed script against the production database from a trusted environment, then complete the salon setup checklist.
-7. Verify booking, cancellation, staff access, contact delivery and admin role separation before opening public bookings.
+7. Back up the database and apply the reviewed multi-tenant migration.
+8. Verify each salon owner can access only their own workspace; test two salons with the same customer phone and overlapping staff time slots.
+9. Verify booking, cancellation, staff access, contact delivery and admin role separation before opening public bookings.
 
 ## Operational/security notes
 
