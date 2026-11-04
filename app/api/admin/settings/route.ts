@@ -28,7 +28,7 @@ async function authorize(request: Request) {
   const salon = await findActiveSalonBySlug(slug);
   if (!salon) return { response: NextResponse.json({ error: 'Salon not found.' }, { status: 404 }) };
   const session = await auth();
-  const access = await requireSalonMembership(session, String(salon.salonId), ['OWNER', 'ADMIN']);
+  const access = await requireSalonMembership(session, String(salon.salonId), ['OWNER', 'ADMIN', 'MANAGER']);
   if ('response' in access) return access;
   return { salonId: String(salon.salonId), isTenant: true as const };
 }
