@@ -7,7 +7,7 @@ type Barber = { _id: string; name: string; title?: string };
 type Slot = { time: string; staffId: string; staffName: string };
 const inputClass = 'w-full border border-white/15 bg-[#101010] px-4 py-3 text-sm text-[#f5f1e8] outline-none transition focus:border-[#c6a15b]';
 
-export function BookingForm({ defaultName = '', defaultEmail = '' }: { defaultName?: string; defaultEmail?: string }) {
+export function BookingForm({ defaultName = '', defaultEmail = '', salonSlug }: { defaultName?: string; defaultEmail?: string; salonSlug?: string }) {
   const [services, setServices] = useState<Service[]>([]);
   const [barbers, setBarbers] = useState<Barber[]>([]);
   const [serviceId, setServiceId] = useState('');
@@ -24,20 +24,20 @@ export function BookingForm({ defaultName = '', defaultEmail = '' }: { defaultNa
   const selected = useMemo(() => services.find((item) => item._id === serviceId), [services, serviceId]);
 
   useEffect(() => {
-    fetch('/api/booking').then(async (res) => { const data = await res.json(); if (!res.ok) throw new Error(data.error); setServices(data.services || []); setBarbers(data.staff || []); }).catch((e) => setError(e.message || 'Booking is unavailable.')).finally(() => setLoading(false));
-  }, []);
+    fetch(`/api/booking${salonSlug ? `?salonSlug=${encodeURIComponent(salonSlug)}` : ''}`).then(async (res) => { const data = await res.json(); if (!res.ok) throw new Error(data.error); setServices(data.services || []); setBarbers(data.staff || []); }).catch((e) => setError(e.message || 'Booking is unavailable.')).finally(() => setLoading(false));
+  }, [salonSlug]);
   useEffect(() => {
     if (!serviceId || !date) { setSlots([]); return; }
     setTime('');
-    fetch(`/api/availability?date=${encodeURIComponent(date)}&serviceId=${encodeURIComponent(serviceId)}&staffId=${encodeURIComponent(staffId)}`)
+    fetch(`/api/availability?date=${encodeURIComponent(date)}&serviceId=${encodeURIComponent(serviceId)}&staffId=${encodeURIComponent(staffId)}${salonSlug ? `&salonSlug=${encodeURIComponent(salonSlug)}` : ''}`)
       .then(async (res) => { const data = await res.json(); if (!res.ok) throw new Error(data.error); setSlots(data.slots || []); })
       .catch((e) => setError(e.message || 'Could not load times.'));
-  }, [serviceId, staffId, date]);
+  }, [serviceId, staffId, date, salonSlug]);
 
   async function submit() {
     setSubmitting(true); setError('');
     try {
-      const response = await fetch('/api/booking', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ serviceId, staffId, date, time, ...details }) });
+      const response = await fetch('/api/booking', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ serviceId, staffId, date, time, ...details, ...(salonSlug ? { salonSlug } : {}) }) });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Booking failed.');
       setConfirmation(data.bookingRef);
