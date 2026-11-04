@@ -64,7 +64,16 @@ npm test
 npm run build
 ```
 
-## Multi-tenant platform\n\n- Sign in and open `/dashboard/salons` to create a new salon workspace. The creator receives an OWNER membership for that salon.\n- Public salon profiles use `/salons/{slug}` and booking uses `/salons/{slug}/booking`.\n- Salon administration uses `/salons/{slug}/admin`; every resource API receives the same `salonSlug` and verifies an active membership for that exact salon before reading or changing data.\n- Salon-owned records are scoped by `salonId`. Customer phone uniqueness is scoped to `(salonId, phone)`, so the same person may be a customer of multiple salons.\n- The original `/admin` workspace remains the legacy single-salon administration route for the existing `SALON_ID`. New salons must use their slug-scoped workspace.\n- The existing production database must be migrated before the legacy salon appears in the public directory or its new slug-scoped workspace works. Take a verified backup, configure `SALON_ID`, `SALON_SLUG`, `SALON_NAME` and `ADMIN_EMAILS`, then run `npm run db:migrate:multi-tenant` for a dry run. Review the document counts and duplicate phone report. Only after the backup and review, run `node scripts/migrate-multi-tenant.mjs --apply` against the intended database. This migration assigns legacy records missing `salonId` to the legacy salon, copies settings, creates owner/staff memberships and replaces the global customer phone index. Never run `--apply` against a database containing unrelated applications or unreviewed tenant data.\n\n## Booking consistency design
+## Multi-tenant platform
+
+- Sign in and open `/dashboard/salons` to create a new salon workspace. The creator receives an OWNER membership for that salon.
+- Public salon profiles use `/salons/{slug}` and booking uses `/salons/{slug}/booking`.
+- Salon administration uses `/salons/{slug}/admin`; every resource API receives the same `salonSlug` and verifies an active membership for that exact salon before reading or changing data.
+- Salon-owned records are scoped by `salonId`. Customer phone uniqueness is scoped to `(salonId, phone)`, so the same person may be a customer of multiple salons.
+- The original `/admin` workspace remains the legacy single-salon administration route for the existing `SALON_ID`. New salons must use their slug-scoped workspace.
+- The existing production database must be migrated before the legacy salon appears in the public directory or its new slug-scoped workspace works. Take a verified backup, configure `SALON_ID`, `SALON_SLUG`, `SALON_NAME` and `ADMIN_EMAILS`, then run `npm run db:migrate:multi-tenant` for a dry run. Review the document counts and duplicate phone report. Only after the backup and review, run `node scripts/migrate-multi-tenant.mjs --apply` against the intended database. This migration assigns legacy records missing `salonId` to the legacy salon, copies settings, creates owner/staff memberships and replaces the global customer phone index. Never run `--apply` against a database containing unrelated applications or unreviewed tenant data.
+
+## Booking consistency design
 
 The server validates every booking request, calculates its UTC start/end from the requested Dhaka wall-clock time, and attempts a MongoDB transaction. It inserts one unique lock per 15-minute interval for the selected barber. A unique compound index on `(salonId, staffId, slotKey)` makes competing overlapping bookings conflict even when they begin at different times. The appointment and locks commit together. Cancellation/rejection releases the locks. Atlas transactions and index creation are required for this guarantee.
 
@@ -93,7 +102,9 @@ Email/password registration uses bcrypt hashing. Google OAuth is enabled only wh
 4. Set `NEXT_PUBLIC_APP_URL` and `AUTH_URL` to the production URL.
 5. Add the production callback URL to Google OAuth, for example `https://YOUR_DOMAIN/api/auth/callback/google`.
 6. Deploy, run the seed script against the production database from a trusted environment, then complete the salon setup checklist.
-7. Back up the database and apply the reviewed multi-tenant migration.\n8. Verify each salon owner can access only their own workspace; test two salons with the same customer phone and overlapping staff time slots.\n9. Verify booking, cancellation, staff access, contact delivery and admin role separation before opening public bookings.
+7. Back up the database and apply the reviewed multi-tenant migration.
+8. Verify each salon owner can access only their own workspace; test two salons with the same customer phone and overlapping staff time slots.
+9. Verify booking, cancellation, staff access, contact delivery and admin role separation before opening public bookings.
 
 ## Operational/security notes
 
