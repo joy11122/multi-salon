@@ -108,7 +108,6 @@ export async function POST(request: Request) {
 
     await mongoSession.withTransaction(async () => {
       await db.collection('salons').insertOne({
-        _id: salonId,
         salonId,
         slug,
         name: parsed.data.name,
