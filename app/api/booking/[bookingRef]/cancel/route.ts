@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getClient, getDb } from '@/lib/db/client';
+import type { ClientSession } from 'mongodb';
 import { auth } from '@/lib/auth';
 import { SALON_ID } from '@/lib/utils';
 
@@ -11,7 +12,7 @@ export async function POST(_request: Request, context: { params: { bookingRef: s
   const bookingRef = String(context.params.bookingRef || '').trim();
   if (!bookingRef || bookingRef.length > 64) return NextResponse.json({ error: 'Invalid booking reference.' }, { status: 400 });
 
-  let mongoSession;
+  let mongoSession: ClientSession | undefined;
   try {
     const client = await getClient();
     const db = await getDb();
