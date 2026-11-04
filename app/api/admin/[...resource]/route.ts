@@ -186,14 +186,24 @@ export async function PATCH(request: Request, context: { params: { resource: str
       const newEmail = String(update.email);
       const linkedUser = await db.collection('users').findOne({ email: newEmail }, { projection: { _id: 1 } });
       if (scope.isTenant) {
-        const existingTarget = await db.collection('salonMemberships').findOne({ salonId: scope.salonId, email: newEmail });
-        if (!existingTarget && previousStaff?.email) {
+        const oldEmail = String(previousStaff?.email || '').trim().toLowerCase();
+        if (oldEmail && oldEmail !== newEmail) {
           await db.collection('salonMemberships').updateOne(
-            { salonId: scope.salonId, email: String(previousStaff.email).toLowerCase(), role: 'STAFF' },
-            { $set: { email: newEmail, ...(linkedUser ? { userId: String(linkedUser._id) } : {}), updatedAt: new Date() } },
+            { salonId: scope.salonId, email: oldEmail, role: 'STAFF' },
+            { $set: { status: 'SUSPENDED', updatedAt: new Date() } },
+          );
+        }
+        const existingTarget = await db.collection('salonMemberships').findOne({ salonId: scope.salonId, email: newEmail });
+        if (existingTarget?.role === 'STAFF') {
+          await db.collection('salonMemberships').updateOne(
+            { _id: existingTarget._id },
+            { $set: { status: 'ACTIVE', ...(linkedUser ? { userId: String(linkedUser._id) } : {}), updatedAt: new Date() } },
           );
         } else if (!existingTarget) {
-          await db.collection('salonMemberships').insertOne({ salonId: scope.salonId, email: newEmail, ...(linkedUser ? { userId: String(linkedUser._id) } : {}), role: 'STAFF', status: 'ACTIVE', createdAt: new Date(), updatedAt: new Date() });
+          await db.collection('salonMemberships').insertOne({
+            salonId: scope.salonId, email: newEmail, ...(linkedUser ? { userId: String(linkedUser._id) } : {}),
+            role: 'STAFF', status: 'ACTIVE', createdAt: new Date(), updatedAt: new Date(),
+          });
         }
       } else {
         const staffRecord = await db.collection('staff').findOne(filter, { projection: { name: 1, email: 1 } });
