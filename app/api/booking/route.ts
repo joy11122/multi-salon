@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { ObjectId, type ClientSession } from 'mongodb';
+import { auth } from '@/lib/auth';
 import { getClient, getDb } from '@/lib/db/client';
 import { ensureIndexes } from '@/lib/db/indexes';
 import { bookingSchema } from '@/lib/validations/booking';
@@ -30,6 +31,9 @@ export async function POST(request: Request) {
     const parsed = bookingSchema.safeParse(await request.json());
     if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0]?.message || 'Invalid booking details.' }, { status: 400 });
     const input = parsed.data;
+    const userSession = await auth();
+    const accountEmail = userSession?.user?.email ? String(userSession.user.email).trim().toLowerCase() : '';
+    const bookingEmail = accountEmail || String(input.email || '').trim().toLowerCase();
     if (input.date < getDhakaDate()) return NextResponse.json({ error: 'Please choose a future date.' }, { status: 400 });
     if (!ObjectId.isValid(input.serviceId)) return NextResponse.json({ error: 'Invalid service selection.' }, { status: 400 });
     const db = await getDb();
@@ -59,10 +63,10 @@ export async function POST(request: Request) {
         await session.withTransaction(async () => {
           const conflicting = await db.collection('appointments').findOne({ salonId: SALON_ID, staffId: barber._id, status: { $nin: ['CANCELLED', 'REJECTED'] }, startAt: { $lt: endAt }, endAt: { $gt: startAt } }, { session, projection: { _id: 1 } });
           if (conflicting) throw Object.assign(new Error('Selected barber is no longer available.'), { code: 'SLOT_BUSY' });
-          const phone = input.phone.replace(/^\+?88/, '0');
+          const phone = input.phone.replace(/^\\+?88/, '0');
           const customer = await db.collection('customers').findOneAndUpdate(
             { phone },
-            { $set: { name: input.customerName, email: (input.email || '').trim().toLowerCase(), updatedAt: new Date() }, $setOnInsert: { salonId: SALON_ID, phone, createdAt: new Date() } },
+            { $set: { name: input.customerName, email: bookingEmail, updatedAt: new Date() }, $setOnInsert: { salonId: SALON_ID, phone, createdAt: new Date() } },
             { upsert: true, returnDocument: 'after', session },
           );
           const barberSlots: string[] = [];
@@ -70,7 +74,7 @@ export async function POST(request: Request) {
           await db.collection('slotLocks').insertMany(barberSlots.map((slotKey) => ({ salonId: SALON_ID, staffId: barber._id, slotKey, appointmentRef: bookingRef, expiresAt: addMinutes(endAt, 24 * 60), createdAt: new Date() })), { session, ordered: true });
           const appointment = {
             salonId: SALON_ID, bookingRef, customerId: customer?._id, customerName: input.customerName, phone,
-            email: (input.email || '').trim().toLowerCase(), serviceId: service._id, serviceName: service.name, staffId: barber._id, staffName: barber.name, staffEmail: barber.email || '',
+            email: bookingEmail, serviceId: service._id, serviceName: service.name, staffId: barber._id, staffName: barber.name, staffEmail: barber.email || '',
             price: Number(service.price), durationMinutes: Number(service.durationMinutes || 30), startAt, endAt,
             notes: input.notes, status: 'PENDING', paymentStatus: 'UNPAID', source: 'WEBSITE', createdAt: new Date(), updatedAt: new Date(),
           };
