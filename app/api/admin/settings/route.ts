@@ -38,9 +38,14 @@ export async function GET(request: Request) {
   if ('response' in access) return access.response;
   try {
     const db = await getDb();
-    const settings = access.isTenant
-      ? await db.collection('salonSettings').findOne({ salonId: access.salonId })
-      : await db.collection('settings').findOne({ _id: 'salon' as never });
+    if (access.isTenant) {
+      const [settings, salon] = await Promise.all([
+        db.collection('salonSettings').findOne({ salonId: access.salonId }),
+        db.collection('salons').findOne({ salonId: access.salonId }, { projection: { name: 1, phone: 1, address: 1 } }),
+      ]);
+      return NextResponse.json({ settings: settings ? { ...settings, name: salon?.name || '', phone: salon?.phone || '', address: salon?.address || '' } : { name: salon?.name || '', phone: salon?.phone || '', address: salon?.address || '' } });
+    }
+    const settings = await db.collection('settings').findOne({ _id: 'salon' as never });
     return NextResponse.json({ settings: settings || null });
   } catch (error) {
     console.error('settings_load_failed', error);
