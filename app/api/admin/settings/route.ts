@@ -7,8 +7,8 @@ import { SALON_ID } from '@/lib/utils';
 import { findActiveSalonBySlug, requireSalonMembership } from '@/lib/tenancy';
 
 const day = z.object({
-  open: z.string().regex(/^([01]\\d|2[0-3]):[0-5]\\d$/),
-  close: z.string().regex(/^([01]\\d|2[0-3]):[0-5]\\d$/),
+  open: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
+  close: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
   closed: z.boolean(),
 });
 const schema = z.object({
