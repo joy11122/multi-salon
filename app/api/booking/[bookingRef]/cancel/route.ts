@@ -2,15 +2,18 @@ import { NextResponse } from 'next/server';
 import { getClient, getDb } from '@/lib/db/client';
 import type { ClientSession } from 'mongodb';
 import { auth } from '@/lib/auth';
-import { SALON_ID } from '@/lib/utils';
 
 export async function POST(_request: Request, context: { params: { bookingRef: string } }) {
   const sessionUser = await auth();
   const email = String(sessionUser?.user?.email || '').trim().toLowerCase();
-  if (!sessionUser?.user || !email) return NextResponse.json({ error: 'Please sign in to cancel this booking.' }, { status: 401 });
+  if (!sessionUser?.user || !email) {
+    return NextResponse.json({ error: 'Please sign in to cancel this booking.' }, { status: 401 });
+  }
 
   const bookingRef = String(context.params.bookingRef || '').trim();
-  if (!bookingRef || bookingRef.length > 64) return NextResponse.json({ error: 'Invalid booking reference.' }, { status: 400 });
+  if (!bookingRef || bookingRef.length > 64) {
+    return NextResponse.json({ error: 'Invalid booking reference.' }, { status: 400 });
+  }
 
   let mongoSession: ClientSession | undefined;
   try {
@@ -21,24 +24,38 @@ export async function POST(_request: Request, context: { params: { bookingRef: s
 
     await mongoSession.withTransaction(async () => {
       const now = new Date();
+      const owned = await db.collection('appointments').findOne(
+        { bookingRef, email },
+        { session: mongoSession, projection: { _id: 1, salonId: 1, status: 1, startAt: 1 } },
+      );
+
+      if (!owned) {
+        outcome = 'NOT_FOUND';
+        return;
+      }
+
+      if (!['PENDING', 'CONFIRMED'].includes(String(owned.status)) || !(owned.startAt instanceof Date) || owned.startAt <= now) {
+        outcome = 'NOT_ALLOWED';
+        return;
+      }
+
       const result = await db.collection('appointments').updateOne(
-        { salonId: SALON_ID, bookingRef, email, status: { $in: ['PENDING', 'CONFIRMED'] }, startAt: { $gt: now } },
+        { _id: owned._id, salonId: owned.salonId, bookingRef, email, status: { $in: ['PENDING', 'CONFIRMED'] }, startAt: { $gt: now } },
         { $set: { status: 'CANCELLED', updatedAt: now, cancelledAt: now, cancelledBy: 'CUSTOMER' } },
         { session: mongoSession },
       );
 
       if (!result.matchedCount) {
-        const owned = await db.collection('appointments').findOne(
-          { salonId: SALON_ID, bookingRef, email },
-          { session: mongoSession, projection: { _id: 1, status: 1, startAt: 1 } },
-        );
-        outcome = owned ? 'NOT_ALLOWED' : 'NOT_FOUND';
+        outcome = 'NOT_ALLOWED';
         return;
       }
 
-      await db.collection('slotLocks').deleteMany({ salonId: SALON_ID, appointmentRef: bookingRef }, { session: mongoSession });
+      await db.collection('slotLocks').deleteMany(
+        { salonId: owned.salonId, appointmentRef: bookingRef },
+        { session: mongoSession },
+      );
       await db.collection('auditLogs').insertOne({
-        salonId: SALON_ID,
+        salonId: owned.salonId,
         actorId: sessionUser.user.id || email,
         action: 'CUSTOMER_CANCEL',
         resource: 'appointments',
