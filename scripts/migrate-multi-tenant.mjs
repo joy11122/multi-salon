@@ -137,6 +137,16 @@ try {
       ),
       db.collection('salonSettings').createIndex({ salonId: 1 }, { unique: true }),
       db.collection('customers').createIndex({ salonId: 1, phone: 1 }, { unique: true }),
+      db.collection('staff').createIndex({ salonId: 1, email: 1 }, { unique: true }),
+      db.collection('services').createIndex({ salonId: 1, active: 1 }),
+      db.collection('appointments').createIndex({ bookingRef: 1 }, { unique: true }),
+      db.collection('appointments').createIndex({ salonId: 1, staffId: 1, startAt: 1, endAt: 1, status: 1 }),
+      db.collection('appointments').createIndex({ salonId: 1, email: 1, startAt: -1 }),
+      db.collection('slotLocks').createIndex({ salonId: 1, staffId: 1, slotKey: 1 }, { unique: true }),
+      db.collection('slotLocks').createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
+      db.collection('payments').createIndex({ salonId: 1, appointmentId: 1 }, { sparse: true }),
+      db.collection('auditLogs').createIndex({ salonId: 1, createdAt: -1 }),
+      db.collection('notifications').createIndex({ salonId: 1, createdAt: -1 }),
     ]);
 
     console.log('Migration applied. Verify the salon owner can sign in and access /salons/' + salonSlug + '/admin.');
