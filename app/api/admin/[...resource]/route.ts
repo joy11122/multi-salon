@@ -232,7 +232,7 @@ export async function PATCH(request: Request, context: { params: { resource: str
 }
 
 export async function DELETE(request: Request, context: { params: { resource: string[] } }) {
-  const scope = await authorizeRequest(request, ['OWNER', 'ADMIN'], ['ADMIN']);
+  const scope = await authorizeRequest(request, ['OWNER', 'ADMIN', 'MANAGER'], ['ADMIN']);
   if ('response' in scope) return scope.response;
   const resource = context.params.resource?.[0] || '';
   if (context.params.resource?.length !== 1) return NextResponse.json({ error: 'Unknown resource.' }, { status: 404 });
