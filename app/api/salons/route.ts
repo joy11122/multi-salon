@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { auth } from '@/lib/auth';
 import { getClient, getDb } from '@/lib/db/client';
 import { createSalonSlug, salonSlugSchema } from '@/lib/tenancy';
+import { rateLimit } from '@/lib/rate-limit';
 
 const createSalonSchema = z.object({
   name: z.string().trim().min(2).max(100),
@@ -63,6 +64,19 @@ export async function POST(request: Request) {
   const session = await auth();
   if (!session?.user?.id || !session.user.email) {
     return NextResponse.json({ error: 'Sign in with an account that has an email address to create a salon.' }, { status: 401 });
+  }
+
+  if (!rateLimit(`salon-create:${session.user.id}`, 5, 60 * 60_000).allowed) {
+    return NextResponse.json({ error: 'You have reached the salon creation limit. Try again later.' }, { status: 429 });
+  }
+
+  const ownerCount = await (await getDb()).collection('salonMemberships').countDocuments({
+    userId: session.user.id,
+    role: 'OWNER',
+    status: 'ACTIVE',
+  });
+  if (ownerCount >= 5) {
+    return NextResponse.json({ error: 'An account can own up to five salon workspaces.' }, { status: 403 });
   }
 
   const parsed = createSalonSchema.safeParse(await request.json().catch(() => null));
