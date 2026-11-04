@@ -182,40 +182,42 @@ export async function PATCH(request: Request, context: { params: { resource: str
     const previousStaff = resource === 'staff' && (update.email !== undefined || update.active !== undefined) ? await db.collection('staff').findOne(filter, { projection: { email: 1 } }) : null;
     const result = await db.collection(resource).updateOne(filter, { $set: update });
     if (!result.matchedCount) return NextResponse.json({ error: 'Record not found.' }, { status: 404 });
-    if (resource === 'staff' && update.email !== undefined) {
-      const newEmail = String(update.email);
-      const linkedUser = await db.collection('users').findOne({ email: newEmail }, { projection: { _id: 1 } });
+    if (resource === 'staff') {
+      const oldEmail = String(previousStaff?.email || '').trim().toLowerCase();
+      const newEmail = update.email === undefined ? oldEmail : String(update.email).trim().toLowerCase();
       if (scope.isTenant) {
-        const oldEmail = String(previousStaff?.email || '').trim().toLowerCase();
-        if (oldEmail && oldEmail !== newEmail) {
+        if (oldEmail && newEmail && oldEmail !== newEmail) {
           await db.collection('salonMemberships').updateOne(
             { salonId: scope.salonId, email: oldEmail, role: 'STAFF' },
             { $set: { status: 'SUSPENDED', updatedAt: new Date() } },
           );
         }
-        const existingTarget = await db.collection('salonMemberships').findOne({ salonId: scope.salonId, email: newEmail });
-        if (existingTarget?.role === 'STAFF') {
-          await db.collection('salonMemberships').updateOne(
-            { _id: existingTarget._id },
-            { $set: { status: 'ACTIVE', ...(linkedUser ? { userId: String(linkedUser._id) } : {}), updatedAt: new Date() } },
-          );
-        } else if (!existingTarget) {
-          await db.collection('salonMemberships').insertOne({
-            salonId: scope.salonId, email: newEmail, ...(linkedUser ? { userId: String(linkedUser._id) } : {}),
-            role: 'STAFF', status: 'ACTIVE', createdAt: new Date(), updatedAt: new Date(),
-          });
+        if (newEmail && (update.email !== undefined || update.active !== undefined)) {
+          const linkedUser = await db.collection('users').findOne({ email: newEmail }, { projection: { _id: 1 } });
+          const existingTarget = await db.collection('salonMemberships').findOne({ salonId: scope.salonId, email: newEmail });
+          const status = update.active === false ? 'SUSPENDED' : 'ACTIVE';
+          if (existingTarget?.role === 'STAFF') {
+            await db.collection('salonMemberships').updateOne(
+              { _id: existingTarget._id },
+              { $set: { status, ...(linkedUser ? { userId: String(linkedUser._id) } : {}), updatedAt: new Date() } },
+            );
+          } else if (!existingTarget) {
+            await db.collection('salonMemberships').insertOne({
+              salonId: scope.salonId, email: newEmail, ...(linkedUser ? { userId: String(linkedUser._id) } : {}),
+              role: 'STAFF', status, createdAt: new Date(), updatedAt: new Date(),
+            });
+          }
         }
-      }
-      if (scope.isTenant && update.active !== undefined && previousStaff?.email) {
-        await db.collection('salonMemberships').updateOne(
-          { salonId: scope.salonId, email: String(update.email ?? previousStaff.email).trim().toLowerCase(), role: 'STAFF' },
-          { $set: { status: update.active === false ? 'SUSPENDED' : 'ACTIVE', updatedAt: new Date() } },
-        );
-      }
-      if (!scope.isTenant) {
+      } else if (update.email !== undefined) {
         const staffRecord = await db.collection('staff').findOne(filter, { projection: { name: 1, email: 1 } });
-        if (previousStaff?.email && previousStaff.email !== update.email) await db.collection('users').updateOne({ email: previousStaff.email }, { $set: { role: 'CUSTOMER', updatedAt: new Date() } });
-        await db.collection('users').updateOne({ email: newEmail }, { $set: { name: staffRecord?.name, role: 'STAFF', updatedAt: new Date() }, $setOnInsert: { email: newEmail, emailVerified: null, createdAt: new Date() } }, { upsert: true });
+        if (oldEmail && oldEmail !== newEmail) {
+          await db.collection('users').updateOne({ email: oldEmail }, { $set: { role: 'CUSTOMER', updatedAt: new Date() } });
+        }
+        await db.collection('users').updateOne(
+          { email: newEmail },
+          { $set: { name: staffRecord?.name, role: 'STAFF', updatedAt: new Date() }, $setOnInsert: { email: newEmail, emailVerified: null, createdAt: new Date() } },
+          { upsert: true },
+        );
       }
     }
     if (resource === 'appointments' && ['CANCELLED','REJECTED'].includes(String(update.status))) await (await getDb()).collection('slotLocks').deleteMany({ salonId: scope.salonId, appointmentRef: String((await (await getDb()).collection('appointments').findOne({ _id: new ObjectId(id), salonId: scope.salonId }, { projection: { bookingRef: 1 } }))?.bookingRef || '') });
