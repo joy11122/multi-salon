@@ -78,7 +78,7 @@ export function SalonWorkspace() {
                         <p className="mt-2 text-xs text-[#999]">/salons/{salon.slug} · {salon.role}</p>
                         {salon.address && <p className="mt-2 text-xs text-[#888]">{salon.address}</p>}
                       </div>
-                      <Link href={`/salons/${encodeURIComponent(salon.slug)}/admin`} className="gold-button px-4 py-3 text-[10px] tracking-widest">OPEN WORKSPACE</Link>
+                      <Link href={`/salons/${encodeURIComponent(salon.slug)}/${salon.role === 'STAFF' ? 'staff' : 'admin'}`} className="gold-button px-4 py-3 text-[10px] tracking-widest">OPEN WORKSPACE</Link>
                     </div>
                   </article>
                 ))}
