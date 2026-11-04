@@ -37,7 +37,7 @@ export function ensureIndexes(): Promise<void> {
         db.collection('slotLocks').createIndex({ salonId: 1, appointmentRef: 1 }),
         db.collection('services').createIndex({ salonId: 1, active: 1 }),
         db.collection('staff').createIndex({ salonId: 1, active: 1 }),
-        db.collection('staff').createIndex({ salonId: 1, email: 1 }, { unique: true }),
+        db.collection('staff').createIndex({ salonId: 1, email: 1 }, { unique: true, partialFilterExpression: { email: { $type: 'string', $gt: '' } } }),
         db.collection('payments').createIndex({ salonId: 1, appointmentId: 1 }, { sparse: true }),
         db.collection('auditLogs').createIndex({ salonId: 1, createdAt: -1 }),
         db.collection('notifications').createIndex({ salonId: 1, createdAt: -1 }),
