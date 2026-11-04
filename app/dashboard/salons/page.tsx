@@ -6,6 +6,6 @@ export const dynamic = 'force-dynamic';
 
 export default async function MySalonsPage() {
   const session = await auth();
-  if (!session?.user) redirect('/login');
+  if (!session?.user) redirect('/login?callbackUrl=%2Fdashboard%2Fsalons');
   return <SalonWorkspace />;
 }
