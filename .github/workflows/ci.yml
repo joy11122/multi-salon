@@ -40,6 +40,9 @@ jobs:
       - name: Install dependencies
         run: npm install --no-audit --no-fund
 
+      - name: Validate database scripts
+        run: node --check scripts/seed.mjs && node --check scripts/migrate-multi-tenant.mjs
+
       - name: TypeScript
         run: npm run typecheck
 
