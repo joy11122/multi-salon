@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { signOut } from 'next-auth/react';
 import { Menu, X } from 'lucide-react';
 
-const links = [{href:'/',label:'Home'},{href:'/services',label:'Services'},{href:'/barbers',label:'Our Barbers'},{href:'/gallery',label:'Gallery'},{href:'/about',label:'Our Story'},{href:'/contact',label:'Contact'}];
+const links = [{href:'/',label:'Home'},{href:'/services',label:'Services'},{href:'/salons',label:'Find a Salon'},{href:'/barbers',label:'Our Barbers'},{href:'/gallery',label:'Gallery'},{href:'/about',label:'Our Story'},{href:'/contact',label:'Contact'}];
 
 type Props = { userName?: string | null; dashboardHref?: string | null };
 export function SiteHeader({ userName, dashboardHref }: Props) {
