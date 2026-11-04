@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { auth } from '@/lib/auth';
 import { getClient, getDb } from '@/lib/db/client';
+import { ensureIndexes } from '@/lib/db/indexes';
 import { createSalonSlug, salonSlugSchema } from '@/lib/tenancy';
 import { rateLimit } from '@/lib/rate-limit';
 
@@ -103,15 +104,7 @@ export async function POST(request: Request) {
   const mongoSession = client.startSession();
 
   try {
-    await Promise.all([
-      db.collection('salons').createIndex({ slug: 1 }, { unique: true }),
-      db.collection('salonMemberships').createIndex({ salonId: 1, email: 1 }, { unique: true }),
-      db.collection('salonMemberships').createIndex(
-        { salonId: 1, userId: 1 },
-        { unique: true, partialFilterExpression: { userId: { $type: 'string' } } },
-      ),
-      db.collection('salonSettings').createIndex({ salonId: 1 }, { unique: true }),
-    ]);
+    await ensureIndexes();
 
     await mongoSession.withTransaction(async () => {
       await db.collection('salons').insertOne({
