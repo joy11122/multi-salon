@@ -179,7 +179,7 @@ export async function PATCH(request: Request, context: { params: { resource: str
     }
     if (scope.role === 'STAFF' && update.status && !['CONFIRMED','COMPLETED','NO_SHOW'].includes(String(update.status))) return NextResponse.json({ error: 'You cannot set that appointment status.' }, { status: 403 });
     const db = await getDb();
-    const previousStaff = resource === 'staff' && update.email !== undefined ? await db.collection('staff').findOne(filter, { projection: { email: 1 } }) : null;
+    const previousStaff = resource === 'staff' && (update.email !== undefined || update.active !== undefined) ? await db.collection('staff').findOne(filter, { projection: { email: 1 } }) : null;
     const result = await db.collection(resource).updateOne(filter, { $set: update });
     if (!result.matchedCount) return NextResponse.json({ error: 'Record not found.' }, { status: 404 });
     if (resource === 'staff' && update.email !== undefined) {
@@ -205,7 +205,14 @@ export async function PATCH(request: Request, context: { params: { resource: str
             role: 'STAFF', status: 'ACTIVE', createdAt: new Date(), updatedAt: new Date(),
           });
         }
-      } else {
+      }
+      if (scope.isTenant && update.active !== undefined && previousStaff?.email) {
+        await db.collection('salonMemberships').updateOne(
+          { salonId: scope.salonId, email: String(update.email ?? previousStaff.email).trim().toLowerCase(), role: 'STAFF' },
+          { $set: { status: update.active === false ? 'SUSPENDED' : 'ACTIVE', updatedAt: new Date() } },
+        );
+      }
+      if (!scope.isTenant) {
         const staffRecord = await db.collection('staff').findOne(filter, { projection: { name: 1, email: 1 } });
         if (previousStaff?.email && previousStaff.email !== update.email) await db.collection('users').updateOne({ email: previousStaff.email }, { $set: { role: 'CUSTOMER', updatedAt: new Date() } });
         await db.collection('users').updateOne({ email: newEmail }, { $set: { name: staffRecord?.name, role: 'STAFF', updatedAt: new Date() }, $setOnInsert: { email: newEmail, emailVerified: null, createdAt: new Date() } }, { upsert: true });
