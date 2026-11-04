@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { ObjectId } from 'mongodb';
+import type { Session } from 'next-auth';
 import { getDb } from '@/lib/db/client';
 import { requireRole } from '@/lib/auth-guards';
 import { auth } from '@/lib/auth';
@@ -18,7 +19,7 @@ async function syncAppointmentPayment(db: Awaited<ReturnType<typeof getDb>>, app
   await db.collection('appointments').updateOne({ _id: appointmentId, salonId }, { $set: { paymentStatus, updatedAt: new Date() } });
 }
 
-type RequestScope = { session: NonNullable<Awaited<ReturnType<typeof auth>>>; role: string; salonId: string; isTenant: boolean; };
+type RequestScope = { session: Session; role: string; salonId: string; isTenant: boolean; };
 async function authorizeRequest(request: Request, tenantRoles: readonly SalonRole[], legacyRoles: string[]): Promise<RequestScope | { response: NextResponse }> {
   const slug = new URL(request.url).searchParams.get('salonSlug');
   if (!slug) {
