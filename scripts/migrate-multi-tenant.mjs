@@ -31,6 +31,13 @@ try {
     missingCounts[collectionName] = await db.collection(collectionName).countDocuments({ salonId: { $exists: false } });
   }
 
+  const duplicateStaffEmails = await db.collection('staff').aggregate([
+    { $match: { $or: [{ salonId }, { salonId: { $exists: false } }], email: { $type: 'string', $ne: '' } } },
+    { $group: { _id: { $toLower: { $trim: { input: '$email' } } }, count: { $sum: 1 } } },
+    { $match: { count: { $gt: 1 } } },
+    { $limit: 10 },
+  ]).toArray();
+
   const duplicatePhones = await db.collection('customers').aggregate([
     { $match: { $or: [{ salonId }, { salonId: { $exists: false } }] } },
     { $group: { _id: '$phone', count: { $sum: 1 } } },
@@ -43,6 +50,7 @@ try {
     salon: { salonId, slug: salonSlug, name },
     documentsMissingSalonId: missingCounts,
     duplicateCustomerPhones: duplicatePhones,
+    duplicateStaffEmails: duplicateStaffEmails,
     warning: 'Back up the production database before applying this migration.',
   }, null, 2));
 
@@ -51,6 +59,7 @@ try {
     process.exitCode = 0;
   } else {
     if (duplicatePhones.length) throw new Error('Duplicate customer phone numbers exist in the legacy salon. Resolve them before creating the tenant-scoped unique index.');
+    if (duplicateStaffEmails.length) throw new Error('Duplicate staff email addresses exist in the legacy salon. Resolve them case-insensitively before creating the tenant-scoped unique index.');
 
     const slugOwner = await db.collection('salons').findOne({ slug: salonSlug, salonId: { $ne: salonId } });
     if (slugOwner) throw new Error('SALON_SLUG is already assigned to a different salon.');
@@ -106,6 +115,7 @@ try {
     for (const staff of staffMembers) {
       const email = String(staff.email).trim().toLowerCase();
       if (!email) continue;
+      await db.collection('staff').updateOne({ _id: staff._id, salonId }, { $set: { email } });
       const existing = await db.collection('salonMemberships').findOne({ salonId, email });
       if (existing) continue;
       const user = await db.collection('users').findOne({ email }, { projection: { _id: 1 } });
@@ -137,7 +147,7 @@ try {
       ),
       db.collection('salonSettings').createIndex({ salonId: 1 }, { unique: true }),
       db.collection('customers').createIndex({ salonId: 1, phone: 1 }, { unique: true }),
-      db.collection('staff').createIndex({ salonId: 1, email: 1 }, { unique: true }),
+      db.collection('staff').createIndex({ salonId: 1, email: 1 }, { unique: true, partialFilterExpression: { email: { $type: 'string', $gt: '' } } }),
       db.collection('services').createIndex({ salonId: 1, active: 1 }),
       db.collection('appointments').createIndex({ bookingRef: 1 }, { unique: true }),
       db.collection('appointments').createIndex({ salonId: 1, staffId: 1, startAt: 1, endAt: 1, status: 1 }),
