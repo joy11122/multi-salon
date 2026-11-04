@@ -65,7 +65,7 @@ export async function POST(request: Request) {
           if (conflicting) throw Object.assign(new Error('Selected barber is no longer available.'), { code: 'SLOT_BUSY' });
           const phone = input.phone.replace(/^\+?88/, '0');
           const customer = await db.collection('customers').findOneAndUpdate(
-            { phone },
+            { salonId: SALON_ID, phone },
             { $set: { name: input.customerName, email: bookingEmail, updatedAt: new Date() }, $setOnInsert: { salonId: SALON_ID, phone, createdAt: new Date() } },
             { upsert: true, returnDocument: 'after', session },
           );
