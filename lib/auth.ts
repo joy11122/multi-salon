@@ -39,6 +39,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         token.sub = user.id;
         token.role = (user as typeof user & { role?: string }).role || 'CUSTOMER';
       }
+      token.role = getSafePersistedRole(token.role) || 'CUSTOMER';
       if (token.email) {
         const normalizedTokenEmail = String(token.email).trim().toLowerCase();
         const superAdminEmails = (process.env.SUPER_ADMIN_EMAILS || '').split(',').map((v) => v.trim().toLowerCase()).filter(Boolean);
