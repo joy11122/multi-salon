@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createSalonSlug, hasSalonRole, salonSlugSchema } from '@/lib/tenancy';
+import { createSalonSlug, getHighestSalonRole, hasSalonRole, salonSlugSchema } from '@/lib/tenancy';
 
 describe('salon tenancy primitives', () => {
   it('creates stable URL-safe salon slugs', () => {
@@ -12,6 +12,12 @@ describe('salon tenancy primitives', () => {
     expect(salonSlugSchema.safeParse('Invalid Slug').success).toBe(false);
     expect(salonSlugSchema.safeParse('../other-salon').success).toBe(false);
     expect(salonSlugSchema.safeParse('ab').success).toBe(false);
+  });
+
+  it('selects the highest active role when legacy duplicate memberships exist', () => {
+    expect(getHighestSalonRole(['STAFF', 'OWNER', 'ADMIN'])).toBe('OWNER');
+    expect(getHighestSalonRole(['STAFF', 'MANAGER'])).toBe('MANAGER');
+    expect(getHighestSalonRole(['UNKNOWN', 'INVALID'])).toBeNull();
   });
 
   it('checks salon membership roles without granting cross-role access', () => {
