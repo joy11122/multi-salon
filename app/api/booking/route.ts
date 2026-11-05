@@ -8,6 +8,9 @@ import { SALON_ID, addMinutes, bookingReference, toDhakaDateTime, getDhakaDate }
 import { rateLimit } from '@/lib/rate-limit';
 import { findActiveSalonBySlug } from '@/lib/tenancy';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
@@ -24,7 +27,7 @@ export async function GET(request: Request) {
       db.collection('staff').find({ salonId, active: true }).project({ name: 1, title: 1, specialties: 1 }).sort({ name: 1 }).toArray(),
       salonSlug ? db.collection('salons').findOne({ salonId, status: 'ACTIVE' }, { projection: { name: 1, phone: 1, address: 1 } }) : db.collection('settings').findOne({ _id: 'salon' as never }, { projection: { name: 1, phone: 1, address: 1 } }),
     ]);
-    return NextResponse.json({ services, staff, salon: salon ? { name: salon.name || 'Salon', phone: salon.phone || '', address: salon.address || '' } : { name: 'Salon', phone: '', address: '' } });
+    return NextResponse.json({ services, staff, salon: salon ? { name: salon.name || 'Salon', phone: salon.phone || '', address: salon.address || '' } : { name: 'Salon', phone: '', address: '' } }, { headers: { 'Cache-Control': 'no-store, max-age=0' } });
   } catch (error) {
     console.error('booking_catalog_failed', error);
     return NextResponse.json({ error: 'Booking is temporarily unavailable.' }, { status: 503 });
