@@ -1,6 +1,13 @@
-import Link from 'next/link';
-import { getDb } from '@/lib/db/client';
-import { SALON_ID, money } from '@/lib/utils';
-export const dynamic='force-dynamic';
-export const metadata={title:'Grooming Services | The Gentlemen’s Club'};
-export default async function ServicesPage(){let services:{_id:unknown;name:string;description:string;category:string;price:number;durationMinutes:number}[]=[];try{services=await(await getDb()).collection('services').find({salonId:SALON_ID,active:true}).sort({sortOrder:1}).toArray() as typeof services;}catch{}return <main className="min-h-screen px-5 py-20 md:px-10"><div className="mx-auto max-w-6xl"><p className="eyebrow">THE MENU</p><h1 className="serif mt-4 text-5xl md:text-6xl">The art of <span className="gold italic">looking sharp.</span></h1><p className="mt-5 max-w-xl text-sm leading-7 text-[#999]">Thoughtful grooming, tailored to you. Every service begins with a conversation and ends with the details done right.</p>{services.length?<div className="mt-12 grid gap-4 md:grid-cols-2">{services.map(s=><article key={String(s._id)} className="service-card p-7"><p className="eyebrow">{s.category}</p><div className="mt-3 flex items-start justify-between gap-4"><div><h2 className="serif text-2xl">{s.name}</h2><p className="mt-3 max-w-md text-sm leading-7 text-[#999]">{s.description}</p></div><p className="whitespace-nowrap text-sm text-[#c6a15b]">{money(s.price)}</p></div><p className="mt-5 text-[10px] tracking-widest text-[#888]">{s.durationMinutes} MINUTES</p></article>)}</div>:<p className="mt-12 border border-white/10 p-8 text-sm text-[#999]">Our service menu is being prepared. Please check back soon.</p>}<p className="mt-8 text-[11px] leading-6 text-[#777]">Service names, prices and durations are sample setup data until approved by the salon.</p><Link href="/booking" className="gold-button mt-8 inline-block px-7 py-4 text-[10px] tracking-widest">BOOK A SERVICE</Link></div></main>}
+import type { Metadata } from 'next';
+import { ServicesDirectory } from '@/components/services-directory';
+
+export const dynamic = 'force-dynamic';
+
+export const metadata: Metadata = {
+  title: 'Explore Salon Services',
+  description: 'Explore services, prices and appointment durations from active salons. Find a service and book directly with your preferred salon.',
+};
+
+export default function ServicesPage() {
+  return <ServicesDirectory />;
+}
