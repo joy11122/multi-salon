@@ -6,7 +6,7 @@ import { MongoDBAdapter } from '@auth/mongodb-adapter';
 import { compare } from 'bcryptjs';
 import { getClient, getDb } from '@/lib/db/client';
 import { rateLimit } from '@/lib/rate-limit';
-import { getPlatformAllowlistRole } from '@/lib/platform-roles';
+import { getPlatformAllowlistRole, getSafePersistedRole } from '@/lib/platform-roles';
 
 const authSecret = process.env.AUTH_SECRET;
 const providers: Provider[] = [];
@@ -46,7 +46,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const platformRole = getPlatformAllowlistRole(normalizedTokenEmail, superAdminEmails, adminEmails);
         if (platformRole) token.role = platformRole;
         else {
-          try { const db = await getDb(); const normalizedEmail = String(token.email).toLowerCase(); const found = await db.collection('users').findOne({ email: normalizedEmail }, { projection: { role: 1 } }); const staff = await db.collection('staff').findOne({ email: normalizedEmail, active: true }, { projection: { _id: 1 } }); token.role = found?.role || (staff ? 'STAFF' : token.role || 'CUSTOMER'); } catch { token.role = token.role || 'CUSTOMER'; }
+          try { const db = await getDb(); const normalizedEmail = String(token.email).toLowerCase(); const found = await db.collection('users').findOne({ email: normalizedEmail }, { projection: { role: 1 } }); const staff = await db.collection('staff').findOne({ email: normalizedEmail, active: true }, { projection: { _id: 1 } }); token.role = getSafePersistedRole(found?.role) || (staff ? 'STAFF' : getSafePersistedRole(token.role) || 'CUSTOMER'); } catch { token.role = token.role || 'CUSTOMER'; }
         }
       }
       return token;
