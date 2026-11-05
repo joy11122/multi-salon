@@ -1,13 +1,10 @@
 'use client';
 
-import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
 
 type Salon = { id: string; name: string; slug: string; phone: string; address: string; role: string };
 
 export function SalonWorkspace() {
-  const router = useRouter();
   const [salons, setSalons] = useState<Salon[]>([]);
   const [name, setName] = useState('');
   const [slug, setSlug] = useState('');
@@ -49,11 +46,9 @@ export function SalonWorkspace() {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Could not create salon.');
       setMessage('Salon created. Opening its management workspace…');
-      router.push(`/salons/${encodeURIComponent(data.salon.slug)}/admin`);
-      router.refresh();
+      window.location.assign(`/salons/${encodeURIComponent(data.salon.slug)}/admin`);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not create salon.');
-    } finally {
       setSaving(false);
     }
   }
@@ -70,18 +65,27 @@ export function SalonWorkspace() {
             <h2 className="serif text-2xl">Your memberships</h2>
             {loading ? <p className="mt-5 text-sm text-[#999]">Loading your salons…</p> : salons.length ? (
               <div className="mt-5 space-y-3">
-                {salons.map((salon) => (
-                  <article key={salon.id} className="border border-white/10 bg-[#151515] p-5">
-                    <div className="flex flex-wrap items-start justify-between gap-4">
-                      <div>
-                        <h3 className="serif text-xl">{salon.name}</h3>
-                        <p className="mt-2 text-xs text-[#999]">/salons/{salon.slug} · {salon.role}</p>
-                        {salon.address && <p className="mt-2 text-xs text-[#888]">{salon.address}</p>}
+                {salons.map((salon) => {
+                  const workspacePath = `/salons/${encodeURIComponent(salon.slug)}/${salon.role === 'STAFF' ? 'staff' : 'admin'}`;
+                  return (
+                    <article key={salon.id} className="border border-white/10 bg-[#151515] p-5">
+                      <div className="flex flex-wrap items-start justify-between gap-4">
+                        <div>
+                          <h3 className="serif text-xl">{salon.name}</h3>
+                          <p className="mt-2 text-xs text-[#999]">/salons/{salon.slug} · {salon.role}</p>
+                          {salon.address && <p className="mt-2 text-xs text-[#888]">{salon.address}</p>}
+                        </div>
+                        <a
+                          href={workspacePath}
+                          aria-label={`Open ${salon.name} workspace`}
+                          className="gold-button inline-flex min-h-11 items-center justify-center px-4 py-3 text-[10px] tracking-widest"
+                        >
+                          OPEN WORKSPACE
+                        </a>
                       </div>
-                      <Link href={`/salons/${encodeURIComponent(salon.slug)}/${salon.role === 'STAFF' ? 'staff' : 'admin'}`} className="gold-button px-4 py-3 text-[10px] tracking-widest">OPEN WORKSPACE</Link>
-                    </div>
-                  </article>
-                ))}
+                    </article>
+                  );
+                })}
               </div>
             ) : <p className="mt-5 border border-white/10 bg-[#151515] p-6 text-sm text-[#999]">You do not belong to a salon yet. Create your first salon workspace.</p>}
           </div>
