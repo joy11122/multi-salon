@@ -11,7 +11,10 @@ type BookingConfirmation = { bookingRef: string; salon: SalonDetails; services: 
 const inputClass = 'w-full border border-white/15 bg-[#101010] px-4 py-3 text-sm text-[#f5f1e8] outline-none transition focus:border-[#c6a15b]';
 const MAX_SELECTED_SERVICES = 10;
 
-export function BookingForm({ defaultName = '', defaultEmail = '', salonSlug }: { defaultName?: string; defaultEmail?: string; salonSlug?: string }) {
+type PublicSalon = { slug: string; name: string; address?: string };
+
+export function BookingForm({ defaultName = '', defaultEmail = '', salonSlug, salons = [] }: { defaultName?: string; defaultEmail?: string; salonSlug?: string; salons?: PublicSalon[] }) {
+  const [selectedSalonSlug, setSelectedSalonSlug] = useState(salonSlug || '');
   const [services, setServices] = useState<Service[]>([]);
   const [barbers, setBarbers] = useState<Barber[]>([]);
   const [selectedServiceIds, setSelectedServiceIds] = useState<string[]>([]);
@@ -46,18 +49,20 @@ export function BookingForm({ defaultName = '', defaultEmail = '', salonSlug }: 
   }, [services, search]);
 
   useEffect(() => {
-    fetch(`/api/booking${salonSlug ? `?salonSlug=${encodeURIComponent(salonSlug)}` : ''}`).then(async (res) => { const data = await res.json(); if (!res.ok) throw new Error(data.error); const catalog = data.services || []; setServices(catalog); setBarbers(data.staff || []); setSalon(data.salon || { name: 'Salon', phone: '', address: '' }); if (catalog.length) setOpenCategories([catalog[0].category?.trim() || 'Other services']); }).catch((e) => setError(e.message || 'Booking is unavailable.')).finally(() => setLoading(false));
-  }, [salonSlug]);
+    if (!selectedSalonSlug) { setServices([]); setBarbers([]); setSalon({ name: 'Salon', phone: '', address: '' }); setLoading(false); return; }
+    setLoading(true); setError('');
+    fetch('/api/booking?salonSlug=' + encodeURIComponent(selectedSalonSlug), { cache: 'no-store' }).then(async (res) => { const data = await res.json(); if (!res.ok) throw new Error(data.error); const catalog = data.services || []; setServices(catalog); setBarbers(data.staff || []); setSalon(data.salon || { name: 'Salon', phone: '', address: '' }); setSelectedServiceIds([]); setStaffId('any'); setDate(''); setTime(''); setSlots([]); setStep(1); setOpenCategories(catalog.length ? [catalog[0].category?.trim() || 'Other services'] : []); }).catch((e) => { setServices([]); setBarbers([]); setError(e.message || 'Booking is unavailable.'); }).finally(() => setLoading(false));
+  }, [selectedSalonSlug]);
 
   useEffect(() => {
     if (!selectedServiceIds.length || !date) { setSlots([]); return; }
     setTime('');
     const params = new URLSearchParams({ date, serviceIds: selectedServiceIds.join(','), staffId });
-    if (salonSlug) params.set('salonSlug', salonSlug);
+    if (selectedSalonSlug) params.set('salonSlug', selectedSalonSlug);
     fetch(`/api/availability?${params.toString()}`)
       .then(async (res) => { const data = await res.json(); if (!res.ok) throw new Error(data.error); setSlots(data.slots || []); })
       .catch((e) => { setSlots([]); setError(e.message || 'Could not load times.'); });
-  }, [selectedServiceIds, staffId, date, salonSlug]);
+  }, [selectedServiceIds, staffId, date, selectedSalonSlug]);
 
   function toggleService(serviceId: string) {
     setError('');
@@ -80,7 +85,7 @@ export function BookingForm({ defaultName = '', defaultEmail = '', salonSlug }: 
   async function submit() {
     setSubmitting(true); setError('');
     try {
-      const response = await fetch('/api/booking', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ serviceIds: selectedServiceIds, staffId, date, time, ...details, ...(salonSlug ? { salonSlug } : {}) }) });
+      const response = await fetch('/api/booking', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ serviceIds: selectedServiceIds, staffId, date, time, ...details, ...(selectedSalonSlug ? { salonSlug: selectedSalonSlug } : {}) }) });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Booking failed.');
       setConfirmation({ bookingRef: data.bookingRef, salon, services: selectedServices, staffName: staffId === 'any' ? (data.staffName || 'Assigned by salon') : (barbers.find((barber) => barber._id === staffId)?.name || 'Assigned by salon'), date, time, customerName: details.customerName, phone: details.phone, email: details.email, notes: details.notes, totalPrice, totalDuration, status: data.status || 'PENDING', paymentStatus: data.paymentStatus || 'UNPAID' });
@@ -111,6 +116,9 @@ export function BookingForm({ defaultName = '', defaultEmail = '', salonSlug }: 
       {step===1&&<div>
         <p className="eyebrow">STEP 01</p><h2 className="serif mt-3 text-3xl">Choose your experience.</h2>
         <p className="mt-2 text-sm text-[#999]">Browse by category and select all the services you need.</p>
+        {salons.length > 0 && <label className="mt-6 block"><span className="eyebrow">SELECT SALON</span><select aria-label="Select salon" className={`${inputClass} mt-2`} value={selectedSalonSlug} onChange={(event)=>setSelectedSalonSlug(event.target.value)}><option value="">Choose a salon</option>{salons.map((item)=><option key={item.slug} value={item.slug}>{item.name}{item.address ? ` · ${item.address}` : '''}</option>)}</select></label>}
+        {!salons.length && !salonSlug && <p className="mt-5 border border-[#c6a15b]/30 p-4 text-sm text-[#c6a15b]">No active salons are available for online booking yet.</p>}
+        {selectedSalonSlug ? <>
         {!services.length&&<p className="mt-5 border border-[#c6a15b]/30 p-4 text-sm text-[#c6a15b]">The service menu is not configured yet. Please check back soon.</p>}
         {!barbers.length&&<p className="mt-3 border border-[#c6a15b]/30 p-4 text-sm text-[#c6a15b]">Online booking will open once the salon team has been added by the administrator.</p>}
         <label className="relative mt-6 block"><Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-[#888]"/><input value={search} onChange={(e)=>setSearch(e.target.value)} placeholder="Search services…" aria-label="Search services" className={`${inputClass} pl-11`}/></label>
@@ -144,6 +152,7 @@ export function BookingForm({ defaultName = '', defaultEmail = '', salonSlug }: 
         <div className="mt-7 grid gap-5 sm:grid-cols-2"><label className="block"><span className="eyebrow">BARBER</span><select className={`${inputClass} mt-2`} value={staffId} onChange={(e)=>setStaffId(e.target.value)}><option value="any">Any available barber</option>{barbers.map((b)=><option key={b._id} value={b._id}>{b.name}{b.title?` · ${b.title}`:''}</option>)}</select></label><label className="block"><span className="eyebrow">DATE</span><input className={`${inputClass} mt-2`} type="date" min={new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,10)} value={date} onChange={(e)=>setDate(e.target.value)}/></label></div>
         {date&&selectedServices.length>0&&<div className="mt-7"><p className="eyebrow">AVAILABLE TIMES · {totalDuration} MINUTES</p><div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-4">{slots.map((slot)=><button type="button" key={`${slot.time}-${slot.staffId}`} onClick={()=>setTime(slot.time)} aria-pressed={time===slot.time} className={`border px-3 py-3 text-xs ${time===slot.time?'border-[#c6a15b] bg-[#c6a15b] text-black':'border-white/15 text-[#ddd] hover:border-[#c6a15b]'}`}>{slot.time}</button>)}</div>{!slots.length&&<p className="mt-3 text-sm text-[#999]">No available slots for this date and combination. Try another day or change your services.</p>}</div>}
         <div className="mt-8 flex justify-end"><button disabled={!selectedServices.length||!date||!time||!barbers.length} onClick={()=>setStep(2)} className="gold-button inline-flex items-center gap-2 px-6 py-3 text-[10px] tracking-widest disabled:cursor-not-allowed disabled:opacity-40">CONTINUE <ChevronRight size={15}/></button></div>
+        </> : <p className="mt-5 border border-white/10 p-4 text-sm text-[#999]">Select a salon above to view its live services, team and available appointment times.</p>}
       </div>}
       {step===2&&<div><p className="eyebrow">STEP 02</p><h2 className="serif mt-3 text-3xl">A few details.</h2><div className="mt-7 grid gap-5 sm:grid-cols-2">{([['customerName','Full name','text'],['phone','Mobile number','tel'],['email','Email (optional)','email']] as const).map(([key,label,type])=><label key={key} className="block"><span className="eyebrow">{label}</span><input className={`${inputClass} mt-2`} type={type} required={key!=='email'} value={details[key]} onChange={(e)=>setDetails({...details,[key]:e.target.value})}/></label>)}</div><label className="mt-5 block"><span className="eyebrow">NOTES (OPTIONAL)</span><textarea className={`${inputClass} mt-2`} rows={3} maxLength={500} value={details.notes} onChange={(e)=>setDetails({...details,notes:e.target.value})} placeholder="Anything your barber should know?"/></label><div className="mt-8 flex justify-between"><button onClick={()=>setStep(1)} className="outline-gold inline-flex items-center gap-2 px-5 py-3 text-[10px] tracking-widest"><ChevronLeft size={15}/> BACK</button><button disabled={!details.customerName.trim()||!/^((\+?8801|01)[3-9]\d{8})$/.test(details.phone.replace(/[\s-]/g,''))} onClick={()=>setStep(3)} className="gold-button px-6 py-3 text-[10px] tracking-widest disabled:opacity-40">REVIEW BOOKING</button></div></div>}
       {step===3&&<div><p className="eyebrow">STEP 03</p><h2 className="serif mt-3 text-3xl">Review your visit.</h2><div className="mt-7 space-y-4 border-y border-white/10 py-6 text-sm"><div><p className="text-[#999]">Selected services</p><ul className="mt-2 space-y-2">{selectedServices.map((service)=><li key={service._id} className="flex justify-between gap-4"><span>{service.name}</span><span className="shrink-0 text-[#c6a15b]">৳{Number(service.price||0).toLocaleString('en-BD')}</span></li>)}</ul></div><p className="flex justify-between gap-4"><span className="text-[#999]">Barber</span><span>{staffId==='any'?'Any available':barbers.find(b=>b._id===staffId)?.name}</span></p><p className="flex justify-between gap-4"><span className="text-[#999]">Date & time</span><span>{date} · {time}</span></p><p className="flex justify-between gap-4"><span className="text-[#999]">Name</span><span>{details.customerName}</span></p><p className="flex justify-between gap-4"><span className="text-[#999]">Phone</span><span>{details.phone}</span></p><p className="flex justify-between gap-4"><span className="text-[#999]">Total duration</span><span>{totalDuration} minutes</span></p><p className="flex justify-between gap-4 border-t border-white/10 pt-4 text-base"><span>Estimated total</span><span className="text-[#c6a15b]">৳{totalPrice.toLocaleString('en-BD')}</span></p></div><p className="mt-4 text-xs leading-6 text-[#999]">Your appointment is a request until the salon confirms it. Payment is not collected online at this stage.</p><div className="mt-8 flex justify-between"><button onClick={()=>setStep(2)} className="outline-gold px-5 py-3 text-[10px] tracking-widest">EDIT DETAILS</button><button disabled={submitting} onClick={submit} className="gold-button inline-flex items-center gap-2 px-6 py-3 text-[10px] tracking-widest disabled:opacity-50">{submitting?<LoaderCircle size={14} className="animate-spin"/>:'CONFIRM REQUEST'}</button></div></div>}
