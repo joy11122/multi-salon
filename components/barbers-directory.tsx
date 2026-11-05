@@ -57,17 +57,17 @@ export function BarbersDirectory() {
         <header className="barbers-heading relative overflow-hidden rounded-[2rem] border border-white/[.07] px-6 py-11 sm:px-10 sm:py-14">
           <div className="barbers-heading-glow" />
           <div className="relative z-10 max-w-3xl">
-            <p className="mb-4 inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[.24em] text-[#c6a15b]"><span className="h-px w-8 bg-sky-400" /> Meet the professionals</p>
+            <p className="mb-4 inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[.24em] text-[#c6a15b]"><span className="h-px w-8 bg-[#c6a15b]" /> Meet the professionals</p>
             <h1 className="text-4xl font-semibold leading-[1.08] tracking-[-.04em] text-white sm:text-5xl lg:text-6xl">Skilled hands.<br /><span className="barbers-gradient-text">Personal style.</span></h1>
             <p className="mt-5 max-w-xl text-sm leading-7 text-[#d8d2c7] sm:text-base">Meet the barbers and grooming professionals from salons across our community. Find your expert and book directly.</p>
           </div>
-          <div className="pointer-events-none absolute -bottom-20 right-[-2rem] hidden h-80 w-80 rounded-full border border-sky-400/10 lg:block" />
+          <div className="pointer-events-none absolute -bottom-20 right-[-2rem] hidden h-80 w-80 rounded-full border border-[#c6a15b]/10 lg:block" />
           <div className="pointer-events-none absolute right-24 top-12 hidden text-[#c6a15b]/10 lg:block"><Scissors size={150} strokeWidth={.7} /></div>
         </header>
 
         <section aria-label="Find a barber" className="barbers-filter mt-7 grid gap-3 rounded-2xl border border-white/[.08] p-3 sm:p-4 md:grid-cols-[minmax(220px,1fr)_minmax(200px,.65fr)]">
           <label className="relative block"><span className="sr-only">Search barbers or specialties</span><Search size={18} aria-hidden="true" className="absolute left-4 top-1/2 -translate-y-1/2 text-[#a5a098]" /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search name, skill or salon…" className="w-full rounded-xl border border-white/[.08] bg-[#0b0b0b] py-3.5 pl-11 pr-4 text-sm text-white outline-none transition placeholder:text-[#77736b] focus:border-[#c6a15b]/60 focus:ring-2 focus:ring-[#c6a15b]/10" /></label>
-          <label className="relative block"><span className="sr-only">Filter by salon</span><Store size={17} aria-hidden="true" className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[#a5a098]" /><select value={salonFilter} onChange={(event) => setSalonFilter(event.target.value)} className="w-full appearance-none rounded-xl border border-white/[.08] bg-[#0b0b0b] px-4 py-3.5 pl-11 text-sm text-slate-200 outline-none transition focus:border-[#c6a15b]/60"><option value="all">All salons</option>{salons.map((salon) => <option key={salon.slug} value={salon.slug}>{salon.name}</option>)}</select></label>
+          <label className="relative block"><span className="sr-only">Filter by salon</span><Store size={17} aria-hidden="true" className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[#a5a098]" /><select value={salonFilter} onChange={(event) => setSalonFilter(event.target.value)} className="w-full appearance-none rounded-xl border border-white/[.08] bg-[#0b0b0b] px-4 py-3.5 pl-11 text-sm text-[#d8d2c7] outline-none transition focus:border-[#c6a15b]/60"><option value="all">All salons</option>{salons.map((salon) => <option key={salon.slug} value={salon.slug}>{salon.name}</option>)}</select></label>
         </section>
 
         <div className="mt-9 flex flex-wrap items-end justify-between gap-3"><div><p className="text-[11px] font-semibold uppercase tracking-[.22em] text-[#c6a15b]">The people behind the craft</p><h2 className="mt-2 text-2xl font-semibold tracking-tight text-white">Meet our barbers</h2></div><p className="text-sm text-[#a5a098]" aria-live="polite">{loading ? 'Loading team…' : `${filtered.length} ${filtered.length === 1 ? 'professional' : 'professionals'} found`}</p></div>
@@ -84,7 +84,7 @@ export function BarbersDirectory() {
                   <h3 className="text-xl font-semibold tracking-tight text-white">{person.name}</h3>
                   <p className="mt-1 flex items-center gap-1.5 text-xs text-[#a5a098]"><Store size={13} className="text-[#c6a15b]" /><span className="truncate">{person.salon.name}</span><BadgeCheck size={14} className="text-[#c6a15b]" aria-label="Listed salon" /></p>
                   <p className="mt-4 min-h-10 text-sm leading-5 text-[#a5a098]">{person.bio || 'A dedicated professional focused on quality grooming and personal care.'}</p>
-                  {person.specialties.length > 0 && <div className="mt-4 flex flex-wrap gap-2">{person.specialties.map((skill) => <span key={skill} className="rounded-full border border-[#c6a15b]/15 bg-sky-300/[.06] px-3 py-1 text-[11px] text-[#e0c58f]">{skill}</span>)}</div>}
+                  {person.specialties.length > 0 && <div className="mt-4 flex flex-wrap gap-2">{person.specialties.map((skill) => <span key={skill} className="rounded-full border border-[#c6a15b]/15 bg-[#c6a15b]/[.06] px-3 py-1 text-[11px] text-[#e0c58f]">{skill}</span>)}</div>}
                   {person.salon.address && <p className="mt-5 flex items-center gap-2 border-t border-white/[.07] pt-4 text-xs text-[#a5a098]"><MapPin size={14} className="shrink-0 text-[#c6a15b]" /><span className="truncate">{person.salon.address}</span></p>}
                   <Link href={`/salons/${encodeURIComponent(person.salon.slug)}/booking`} className="barbers-book-button mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl px-5 py-3.5 text-sm font-semibold text-white">Book at this salon <ArrowRight size={16} className="transition-transform group-hover:translate-x-1" /></Link>
                 </div>
