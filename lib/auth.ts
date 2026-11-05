@@ -39,8 +39,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         token.role = (user as typeof user & { role?: string }).role || 'CUSTOMER';
       }
       if (token.email) {
+        const normalizedTokenEmail = String(token.email).trim().toLowerCase();
+        const superAdminEmails = (process.env.SUPER_ADMIN_EMAILS || '').split(',').map((v) => v.trim().toLowerCase()).filter(Boolean);
         const adminEmails = (process.env.ADMIN_EMAILS || '').split(',').map((v) => v.trim().toLowerCase()).filter(Boolean);
-        if (adminEmails.includes(String(token.email).toLowerCase())) token.role = 'ADMIN';
+        if (superAdminEmails.includes(normalizedTokenEmail)) token.role = 'SUPER_ADMIN';
+        else if (adminEmails.includes(normalizedTokenEmail)) token.role = 'ADMIN';
         else {
           try { const db = await getDb(); const normalizedEmail = String(token.email).toLowerCase(); const found = await db.collection('users').findOne({ email: normalizedEmail }, { projection: { role: 1 } }); const staff = await db.collection('staff').findOne({ email: normalizedEmail, active: true }, { projection: { _id: 1 } }); token.role = found?.role || (staff ? 'STAFF' : token.role || 'CUSTOMER'); } catch { token.role = token.role || 'CUSTOMER'; }
         }
