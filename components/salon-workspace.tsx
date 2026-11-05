@@ -3,9 +3,19 @@
 import { useEffect, useState } from 'react';
 
 type Salon = { id: string; name: string; slug: string; phone: string; address: string; role: string };
+type SalonListResponse = {
+  salons?: Salon[];
+  ownerCount?: number;
+  maxOwnedSalons?: number;
+  canCreateSalon?: boolean;
+  error?: string;
+};
 
 export function SalonWorkspace() {
   const [salons, setSalons] = useState<Salon[]>([]);
+  const [ownerCount, setOwnerCount] = useState(0);
+  const [maxOwnedSalons, setMaxOwnedSalons] = useState(5);
+  const [canCreateSalon, setCanCreateSalon] = useState(true);
   const [name, setName] = useState('');
   const [slug, setSlug] = useState('');
   const [phone, setPhone] = useState('');
@@ -20,9 +30,14 @@ export function SalonWorkspace() {
     setError('');
     try {
       const response = await fetch('/api/salons', { cache: 'no-store' });
-      const data = await response.json();
+      const data = await response.json() as SalonListResponse;
       if (!response.ok) throw new Error(data.error || 'Could not load salons.');
-      setSalons(data.salons || []);
+      setSalons(Array.isArray(data.salons) ? data.salons : []);
+      const count = Number.isInteger(data.ownerCount) ? Number(data.ownerCount) : 0;
+      const limit = Number.isInteger(data.maxOwnedSalons) ? Number(data.maxOwnedSalons) : 5;
+      setOwnerCount(count);
+      setMaxOwnedSalons(limit);
+      setCanCreateSalon(typeof data.canCreateSalon === 'boolean' ? data.canCreateSalon : count < limit);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not load salons.');
     } finally {
@@ -34,6 +49,7 @@ export function SalonWorkspace() {
 
   async function createSalon(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!canCreateSalon || saving) return;
     setSaving(true);
     setError('');
     setMessage('');
@@ -50,6 +66,10 @@ export function SalonWorkspace() {
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not create salon.');
       setSaving(false);
+      if (cause instanceof Error && cause.message.toLowerCase().includes('up to five')) {
+        setCanCreateSalon(false);
+        setOwnerCount(maxOwnedSalons);
+      }
     }
   }
 
@@ -90,17 +110,29 @@ export function SalonWorkspace() {
             ) : <p className="mt-5 border border-white/10 bg-[#151515] p-6 text-sm text-[#999]">You do not belong to a salon yet. Create your first salon workspace.</p>}
           </div>
 
-          <form onSubmit={createSalon} className="h-fit border border-white/10 bg-[#151515] p-6">
+          <div className="h-fit border border-white/10 bg-[#151515] p-6">
             <p className="eyebrow">NEW BUSINESS</p>
             <h2 className="serif mt-2 text-2xl">Create a salon.</h2>
-            <label className="mt-5 block text-xs text-[#c6a15b]">SALON NAME<input required minLength={2} maxLength={100} value={name} onChange={(event) => setName(event.target.value)} className="mt-2 w-full border border-white/15 bg-[#0b0b0b] px-3 py-3 text-sm text-white outline-none focus:border-[#c6a15b]" placeholder="Your salon name"/></label>
-            <label className="mt-4 block text-xs text-[#c6a15b]">URL SLUG (OPTIONAL)<input maxLength={60} value={slug} onChange={(event) => setSlug(event.target.value.toLowerCase())} className="mt-2 w-full border border-white/15 bg-[#0b0b0b] px-3 py-3 text-sm text-white outline-none focus:border-[#c6a15b]" placeholder="your-salon-name"/></label>
-            <label className="mt-4 block text-xs text-[#c6a15b]">PHONE<input maxLength={30} value={phone} onChange={(event) => setPhone(event.target.value)} className="mt-2 w-full border border-white/15 bg-[#0b0b0b] px-3 py-3 text-sm text-white outline-none focus:border-[#c6a15b]"/></label>
-            <label className="mt-4 block text-xs text-[#c6a15b]">ADDRESS<input maxLength={300} value={address} onChange={(event) => setAddress(event.target.value)} className="mt-2 w-full border border-white/15 bg-[#0b0b0b] px-3 py-3 text-sm text-white outline-none focus:border-[#c6a15b]"/></label>
-            {error && <p role="alert" className="mt-4 text-sm text-red-300">{error}</p>}
-            {message && <p role="status" className="mt-4 text-sm text-[#c6a15b]">{message}</p>}
-            <button disabled={saving || !name.trim()} className="gold-button mt-5 w-full px-5 py-4 text-[10px] tracking-widest disabled:opacity-50">{saving ? 'CREATING…' : 'CREATE SALON'}</button>
-          </form>
+            <p className="mt-2 text-xs text-[#999]" aria-live="polite">
+              You own {ownerCount} of {maxOwnedSalons} available salon workspaces.
+            </p>
+            {canCreateSalon ? (
+              <form onSubmit={createSalon}>
+                <label className="mt-5 block text-xs text-[#c6a15b]">SALON NAME<input required minLength={2} maxLength={100} value={name} onChange={(event) => setName(event.target.value)} className="mt-2 w-full border border-white/15 bg-[#0b0b0b] px-3 py-3 text-sm text-white outline-none focus:border-[#c6a15b]" placeholder="Your salon name"/></label>
+                <label className="mt-4 block text-xs text-[#c6a15b]">URL SLUG (OPTIONAL)<input maxLength={60} value={slug} onChange={(event) => setSlug(event.target.value.toLowerCase())} className="mt-2 w-full border border-white/15 bg-[#0b0b0b] px-3 py-3 text-sm text-white outline-none focus:border-[#c6a15b]" placeholder="your-salon-name"/></label>
+                <label className="mt-4 block text-xs text-[#c6a15b]">PHONE<input maxLength={30} value={phone} onChange={(event) => setPhone(event.target.value)} className="mt-2 w-full border border-white/15 bg-[#0b0b0b] px-3 py-3 text-sm text-white outline-none focus:border-[#c6a15b]"/></label>
+                <label className="mt-4 block text-xs text-[#c6a15b]">ADDRESS<input maxLength={300} value={address} onChange={(event) => setAddress(event.target.value)} className="mt-2 w-full border border-white/15 bg-[#0b0b0b] px-3 py-3 text-sm text-white outline-none focus:border-[#c6a15b]"/></label>
+                {error && <p role="alert" className="mt-4 text-sm text-red-300">{error}</p>}
+                {message && <p role="status" className="mt-4 text-sm text-[#c6a15b]">{message}</p>}
+                <button disabled={saving || !name.trim()} className="gold-button mt-5 w-full px-5 py-4 text-[10px] tracking-widest disabled:opacity-50">{saving ? 'CREATING…' : 'CREATE SALON'}</button>
+              </form>
+            ) : (
+              <p className="mt-5 border border-white/10 bg-[#0b0b0b] p-4 text-sm leading-6 text-[#999]" role="status">
+                You have reached the limit of {maxOwnedSalons} salon workspaces. You can still open and manage your existing salons.
+              </p>
+            )}
+            {error && !canCreateSalon && <p role="alert" className="mt-4 text-sm text-red-300">{error}</p>}
+          </div>
         </section>
       </div>
     </main>
