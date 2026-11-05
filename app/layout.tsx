@@ -16,6 +16,6 @@ export const metadata: Metadata = {
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   const session = await auth();
   const role = session?.user?.role;
-  const dashboardHref = role === 'ADMIN' ? '/admin' : role === 'STAFF' ? '/dashboard' : session?.user ? '/dashboard' : null;
+  const dashboardHref = role === 'SUPER_ADMIN' ? '/super-admin' : role === 'ADMIN' ? '/admin' : role === 'STAFF' ? '/dashboard' : session?.user ? '/dashboard' : null;
   return <html lang="en"><body><SiteHeader userName={session?.user?.name} dashboardHref={dashboardHref}/>{children}<SiteFooter /></body></html>;
 }
