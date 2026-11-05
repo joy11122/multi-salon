@@ -41,7 +41,7 @@ describe('Dhaka date helpers', () => {
     expect(addMinutes(new Date('2027-01-10T04:00:00Z'), 45).toISOString()).toBe('2027-01-10T04:45:00.000Z');
   });
   it('generates a reference with the expected prefix', () => {
-    expect(bookingReference()).toMatch(/^TGC-\\d{4}-[A-F0-9]{6}$/);
+    expect(bookingReference()).toMatch(/^TGC-\d{4}-[A-F0-9]{6}$/);
   });
   it('formats date in Dhaka timezone', () => {
     expect(getDhakaDate(new Date('2027-01-10T18:30:00Z'))).toBe('2027-01-11');
