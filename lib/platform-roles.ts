@@ -13,3 +13,8 @@ export function getPlatformAllowlistRole(
   if (admins.has(normalizedEmail)) return 'ADMIN';
   return null;
 }
+
+export function getSafePersistedRole(role: unknown): string | null {
+  if (typeof role !== 'string' || !role.trim() || role === 'SUPER_ADMIN') return null;
+  return role;
+}
