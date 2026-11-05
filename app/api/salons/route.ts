@@ -16,7 +16,7 @@ const createSalonSchema = z.object({
   address: z.string().trim().max(300).default(''),
 }).strict();
 
-const MAX_OWNED_SALONS = 5;\n\nconst defaultOpeningHours = Array.from({ length: 7 }, () => ({
+const defaultOpeningHours = Array.from({ length: 7 }, () => ({
   open: '10:00',
   close: '20:00',
   closed: false,
