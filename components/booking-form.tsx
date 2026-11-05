@@ -6,6 +6,8 @@ import { CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, Clock3, LoaderCir
 type Service = { _id: string; name: string; description?: string; category?: string; price: number; durationMinutes: number };
 type Barber = { _id: string; name: string; title?: string };
 type Slot = { time: string; staffId: string; staffName: string };
+type SalonDetails = { name: string; phone: string; address: string };
+type BookingConfirmation = { bookingRef: string; salon: SalonDetails; services: Service[]; staffName: string; date: string; time: string; customerName: string; phone: string; email: string; notes: string; totalPrice: number; totalDuration: number; status: string; paymentStatus: string };
 const inputClass = 'w-full border border-white/15 bg-[#101010] px-4 py-3 text-sm text-[#f5f1e8] outline-none transition focus:border-[#c6a15b]';
 const MAX_SELECTED_SERVICES = 10;
 
@@ -23,7 +25,8 @@ export function BookingForm({ defaultName = '', defaultEmail = '', salonSlug }: 
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
-  const [confirmation, setConfirmation] = useState('');
+  const [confirmation, setConfirmation] = useState<BookingConfirmation | null>(null);
+  const [salon, setSalon] = useState<SalonDetails>({ name: 'Salon', phone: '', address: '' });
   const [step, setStep] = useState(1);
 
   const selectedServices = useMemo(() => selectedServiceIds.map((id) => services.find((item) => item._id === id)).filter((item): item is Service => Boolean(item)), [services, selectedServiceIds]);
@@ -43,7 +46,7 @@ export function BookingForm({ defaultName = '', defaultEmail = '', salonSlug }: 
   }, [services, search]);
 
   useEffect(() => {
-    fetch(`/api/booking${salonSlug ? `?salonSlug=${encodeURIComponent(salonSlug)}` : ''}`).then(async (res) => { const data = await res.json(); if (!res.ok) throw new Error(data.error); const catalog = data.services || []; setServices(catalog); setBarbers(data.staff || []); if (catalog.length) setOpenCategories([catalog[0].category?.trim() || 'Other services']); }).catch((e) => setError(e.message || 'Booking is unavailable.')).finally(() => setLoading(false));
+    fetch(`/api/booking${salonSlug ? `?salonSlug=${encodeURIComponent(salonSlug)}` : ''}`).then(async (res) => { const data = await res.json(); if (!res.ok) throw new Error(data.error); const catalog = data.services || []; setServices(catalog); setBarbers(data.staff || []); setSalon(data.salon || { name: 'Salon', phone: '', address: '' }); if (catalog.length) setOpenCategories([catalog[0].category?.trim() || 'Other services']); }).catch((e) => setError(e.message || 'Booking is unavailable.')).finally(() => setLoading(false));
   }, [salonSlug]);
 
   useEffect(() => {
@@ -80,13 +83,27 @@ export function BookingForm({ defaultName = '', defaultEmail = '', salonSlug }: 
       const response = await fetch('/api/booking', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ serviceIds: selectedServiceIds, staffId, date, time, ...details, ...(salonSlug ? { salonSlug } : {}) }) });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Booking failed.');
-      setConfirmation(data.bookingRef);
+      setConfirmation({ bookingRef: data.bookingRef, salon, services: selectedServices, staffName: staffId === 'any' ? (data.staffName || 'Assigned by salon') : (barbers.find((barber) => barber._id === staffId)?.name || 'Assigned by salon'), date, time, customerName: details.customerName, phone: details.phone, email: details.email, notes: details.notes, totalPrice, totalDuration, status: data.status || 'PENDING', paymentStatus: data.paymentStatus || 'UNPAID' });
     } catch (e) { setError(e instanceof Error ? e.message : 'Booking failed.'); }
     finally { setSubmitting(false); }
   }
 
   if (loading) return <div className="flex min-h-64 items-center justify-center gap-3 text-sm text-[#aaa]"><LoaderCircle className="animate-spin text-[#c6a15b]"/> Loading appointment options…</div>;
-  if (confirmation) return <div className="border border-[#c6a15b]/40 bg-[#171717] p-8 text-center md:p-12"><CheckCircle2 className="mx-auto text-[#c6a15b]" size={42}/><p className="eyebrow mt-5">REQUEST RECEIVED</p><h2 className="serif mt-3 text-3xl">Your chair is requested.</h2><p className="mt-4 text-sm leading-7 text-[#aaa]">Your booking reference is</p><p className="mt-2 text-xl tracking-widest text-[#c6a15b]">{confirmation}</p><p className="mt-5 text-sm text-[#aaa]">The salon will confirm your appointment. Please keep this reference.</p></div>;
+  if (confirmation) return <div className="mx-auto max-w-3xl">
+    <section className="booking-print-sheet border border-[#c6a15b]/40 bg-[#171717] p-7 text-[#f5f1e8] md:p-12">
+      <div className="text-center"><CheckCircle2 className="mx-auto text-[#c6a15b]" size={42}/><p className="eyebrow mt-5">BOOKING CONFIRMATION</p><h2 className="serif mt-3 text-3xl">{confirmation.salon.name}</h2><p className="mt-2 text-sm text-[#aaa]">Appointment request received</p><p className="mt-5 text-xs uppercase tracking-[.2em] text-[#999]">Booking reference</p><p className="mt-2 text-2xl font-semibold tracking-widest text-[#c6a15b]">{confirmation.bookingRef}</p></div>
+      <div className="mt-8 grid gap-5 border-y border-white/10 py-6 sm:grid-cols-2">
+        <div><p className="eyebrow">CUSTOMER</p><p className="mt-2 text-sm">{confirmation.customerName}</p><p className="mt-1 text-sm text-[#aaa]">{confirmation.phone}</p>{confirmation.email&&<p className="mt-1 break-all text-sm text-[#aaa]">{confirmation.email}</p>}</div>
+        <div><p className="eyebrow">APPOINTMENT</p><p className="mt-2 text-sm">{confirmation.date} · {confirmation.time}</p><p className="mt-1 text-sm text-[#aaa]">Barber: {confirmation.staffName}</p><p className="mt-1 text-sm text-[#aaa]">Duration: {confirmation.totalDuration} minutes</p></div>
+      </div>
+      <div className="mt-7"><p className="eyebrow">SELECTED SERVICES</p><div className="mt-3 divide-y divide-white/10">{confirmation.services.map((service)=><div key={service._id} className="flex justify-between gap-4 py-3 text-sm"><span>{service.name}</span><span className="shrink-0 text-[#c6a15b]">৳{Number(service.price||0).toLocaleString('en-BD')}</span></div>)}</div><div className="mt-3 flex justify-between border-t border-white/10 pt-4 text-base font-semibold"><span>Total</span><span className="text-[#c6a15b]">৳{confirmation.totalPrice.toLocaleString('en-BD')}</span></div></div>
+      <div className="mt-7 grid gap-4 border-t border-white/10 pt-5 sm:grid-cols-2"><div><p className="eyebrow">BOOKING STATUS</p><p className="mt-2 text-sm">{confirmation.status}</p></div><div><p className="eyebrow">PAYMENT STATUS</p><p className="mt-2 text-sm">{confirmation.paymentStatus}</p></div></div>
+      {confirmation.notes&&<div className="mt-5"><p className="eyebrow">CUSTOMER NOTES</p><p className="mt-2 whitespace-pre-wrap text-sm text-[#aaa]">{confirmation.notes}</p></div>}
+      <div className="mt-8 border-t border-white/10 pt-5 text-center text-xs leading-6 text-[#999]"><p>{confirmation.salon.address}</p>{confirmation.salon.phone&&<p>{confirmation.salon.phone}</p>}<p className="mt-2">Please keep this booking confirmation. The salon will contact you to confirm your appointment.</p></div>
+    </section>
+    <div className="booking-screen-actions mt-6 flex flex-wrap justify-center gap-3"><button type="button" onClick={()=>window.print()} className="gold-button inline-flex items-center gap-2 px-6 py-3 text-xs font-semibold tracking-widest">DOWNLOAD PDF / PRINT</button><button type="button" onClick={()=>window.location.reload()} className="outline-gold px-6 py-3 text-xs tracking-widest">MAKE ANOTHER BOOKING</button></div>
+    <p className="booking-screen-actions mt-3 text-center text-xs text-[#999]">Choose “Save as PDF” in your browser’s print destination to download the PDF.</p>
+  </div>;
 
   return <div className="grid gap-10 lg:grid-cols-[1fr_330px]">
     <div className="border border-white/10 bg-[#141414] p-5 md:p-9">
