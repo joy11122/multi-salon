@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { auth, signOut } from '@/lib/auth';
 
-const links = [['Overview', '/super-admin'], ['Salons', '/super-admin/salons']];
+const links = [['Overview', '/super-admin'], ['Salons', '/super-admin/salons'], ['Audit log', '/super-admin/audit-logs']];
 
 export default async function SuperAdminLayout({ children }: { children: React.ReactNode }) {
   const session = await auth();
