@@ -15,6 +15,12 @@ describe('platform role allowlist', () => {
     expect(getPlatformAllowlistRole('admin@example.com', [], ['ADMIN@example.com'])).toBe('ADMIN');
   });
 
+  it('never trusts a database-persisted SUPER_ADMIN role', async () => {
+    const { getSafePersistedRole } = await import('@/lib/platform-roles');
+    expect(getSafePersistedRole('SUPER_ADMIN')).toBeNull();
+    expect(getSafePersistedRole('CUSTOMER')).toBe('CUSTOMER');
+  });
+
   it('normalizes whitespace and rejects blank email values', () => {
     expect(getPlatformAllowlistRole('  root@example.com ', ['root@example.com'], [])).toBe('SUPER_ADMIN');
     expect(getPlatformAllowlistRole(' ', ['root@example.com'], [])).toBeNull();
