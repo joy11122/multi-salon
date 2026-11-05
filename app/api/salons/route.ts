@@ -4,8 +4,10 @@ import { z } from 'zod';
 import { auth } from '@/lib/auth';
 import { getClient, getDb } from '@/lib/db/client';
 import { ensureIndexes } from '@/lib/db/indexes';
-import { createSalonSlug, salonSlugSchema } from '@/lib/tenancy';
+import { createSalonSlug, getHighestSalonRole, salonSlugSchema } from '@/lib/tenancy';
 import { rateLimit } from '@/lib/rate-limit';
+
+const MAX_OWNED_SALONS = 5;
 
 const createSalonSchema = z.object({
   name: z.string().trim().min(2).max(100),
@@ -20,6 +22,13 @@ const defaultOpeningHours = Array.from({ length: 7 }, () => ({
   closed: false,
 }));
 
+function getUserIdentities(userId: string, email?: string | null) {
+  const identities: Record<string, string>[] = [{ userId }];
+  const normalizedEmail = String(email || '').trim().toLowerCase();
+  if (normalizedEmail) identities.push({ email: normalizedEmail });
+  return identities;
+}
+
 export async function GET() {
   const session = await auth();
   if (!session?.user?.id) {
@@ -27,35 +36,39 @@ export async function GET() {
   }
 
   try {
-    const email = String(session.user.email || '').trim().toLowerCase();
-    const identities: Record<string, string>[] = [{ userId: session.user.id }];
-    if (email) identities.push({ email });
-
+    const identities = getUserIdentities(session.user.id, session.user.email);
     const db = await getDb();
     const memberships = await db.collection('salonMemberships').find({
       status: 'ACTIVE',
       $or: identities,
     }).project({ salonId: 1, role: 1 }).toArray();
-    const salonIds = memberships.map((membership) => String(membership.salonId));
-    if (!salonIds.length) return NextResponse.json({ salons: [] });
+
+    const roleBySalon = new Map<string, string>();
+    for (const membership of memberships) {
+      const salonId = String(membership.salonId);
+      const currentRole = roleBySalon.get(salonId);
+      const role = getHighestSalonRole([currentRole, membership.role]);
+      if (role) roleBySalon.set(salonId, role);
+    }
+
+    const salonIds = [...roleBySalon.keys()];
+    const ownerMemberships = await db.collection('salonMemberships').find({
+      status: 'ACTIVE',
+      role: 'OWNER',
+      $or: identities,
+    }).project({ salonId: 1 }).toArray();
+    const ownedSalonIds = new Set(ownerMemberships.map((membership) => String(membership.salonId)));
+    const ownerCount = ownedSalonIds.size;
+
+    if (!salonIds.length) {
+      return NextResponse.json({ salons: [], ownerCount, maxOwnedSalons: MAX_OWNED_SALONS, canCreateSalon: ownerCount < MAX_OWNED_SALONS });
+    }
 
     const salons = await db.collection('salons').find({
       salonId: { $in: salonIds },
       status: 'ACTIVE',
-    }).project({ name: 1, slug: 1, status: 1, phone: 1, address: 1 }).sort({ name: 1 }).toArray();
+    }).project({ salonId: 1, name: 1, slug: 1, status: 1, phone: 1, address: 1 }).sort({ name: 1 }).toArray();
 
-    // Prefer the highest workspace role if legacy/duplicate membership rows exist.
-    // A duplicate STAFF row must never downgrade an OWNER/ADMIN/MANAGER workspace link.
-    const rolePriority: Record<string, number> = { OWNER: 4, ADMIN: 3, MANAGER: 2, STAFF: 1 };
-    const roleBySalon = new Map<string, string>();
-    for (const membership of memberships) {
-      const salonId = String(membership.salonId);
-      const role = String(membership.role || 'STAFF');
-      const currentRole = roleBySalon.get(salonId);
-      if (!currentRole || (rolePriority[role] || 0) > (rolePriority[currentRole] || 0)) {
-        roleBySalon.set(salonId, role);
-      }
-    }
     return NextResponse.json({
       salons: salons.map((salon) => ({
         id: String(salon.salonId),
@@ -65,6 +78,9 @@ export async function GET() {
         address: salon.address || '',
         role: roleBySalon.get(String(salon.salonId)) || 'STAFF',
       })),
+      ownerCount,
+      maxOwnedSalons: MAX_OWNED_SALONS,
+      canCreateSalon: ownerCount < MAX_OWNED_SALONS,
     });
   } catch (error) {
     console.error('salon_memberships_list_failed', error);
@@ -82,12 +98,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'You have reached the salon creation limit. Try again later.' }, { status: 429 });
   }
 
-  const ownerCount = await (await getDb()).collection('salonMemberships').countDocuments({
-    userId: session.user.id,
+  const identities = getUserIdentities(session.user.id, session.user.email);
+  const ownerMemberships = await (await getDb()).collection('salonMemberships').find({
     role: 'OWNER',
     status: 'ACTIVE',
-  });
-  if (ownerCount >= 5) {
+    $or: identities,
+  }).project({ salonId: 1 }).toArray();
+  const ownedSalonIds = new Set(ownerMemberships.map((membership) => String(membership.salonId)));
+  if (ownedSalonIds.size >= MAX_OWNED_SALONS) {
     return NextResponse.json({ error: 'An account can own up to five salon workspaces.' }, { status: 403 });
   }
 
