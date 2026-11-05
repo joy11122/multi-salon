@@ -20,11 +20,10 @@ export async function GET(request: Request) {
     }
     const db = await getDb();
     const [services, staff] = await Promise.all([
-      db.collection('services').find({ salonId, active: true }).project({ name: 1, description: 1, price: 1, durationMinutes: 1, category: 1 }).sort({ sortOrder: 1 }).toArray(),
+      db.collection('services').find({ salonId, active: true }).project({ name: 1, description: 1, price: 1, durationMinutes: 1, category: 1 }).sort({ sortOrder: 1, name: 1 }).limit(500).toArray(),
       db.collection('staff').find({ salonId, active: true }).project({ name: 1, title: 1, specialties: 1 }).sort({ name: 1 }).toArray(),
     ]);
-    const date = searchParams.get('date');
-    return NextResponse.json({ services, staff, date });
+    return NextResponse.json({ services, staff });
   } catch (error) {
     console.error('booking_catalog_failed', error);
     return NextResponse.json({ error: 'Booking is temporarily unavailable.' }, { status: 503 });
@@ -39,6 +38,8 @@ export async function POST(request: Request) {
     const parsed = bookingSchema.safeParse(await request.json());
     if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0]?.message || 'Invalid booking details.' }, { status: 400 });
     const input = parsed.data;
+    const uniqueServiceIds = [...new Set(input.serviceIds)];
+    if (uniqueServiceIds.length !== input.serviceIds.length) return NextResponse.json({ error: 'Duplicate services are not allowed.' }, { status: 400 });
     let salonId = SALON_ID;
     if (input.salonSlug) {
       const salon = await findActiveSalonBySlug(input.salonSlug);
@@ -49,11 +50,17 @@ export async function POST(request: Request) {
     const accountEmail = userSession?.user?.email ? String(userSession.user.email).trim().toLowerCase() : '';
     const bookingEmail = accountEmail || String(input.email || '').trim().toLowerCase();
     if (input.date < getDhakaDate()) return NextResponse.json({ error: 'Please choose a future date.' }, { status: 400 });
-    if (!ObjectId.isValid(input.serviceId)) return NextResponse.json({ error: 'Invalid service selection.' }, { status: 400 });
     const db = await getDb();
     await ensureIndexes();
-    const service = await db.collection('services').findOne({ _id: new ObjectId(input.serviceId), salonId, active: true });
-    if (!service) return NextResponse.json({ error: 'Selected service is no longer available.' }, { status: 404 });
+    const services = await db.collection('services').find({ _id: { $in: uniqueServiceIds.map((id) => new ObjectId(id)) }, salonId, active: true }).toArray();
+    if (services.length !== uniqueServiceIds.length) return NextResponse.json({ error: 'One or more selected services are no longer available.' }, { status: 404 });
+    const serviceById = new Map(services.map((service) => [String(service._id), service]));
+    const orderedServices = uniqueServiceIds.map((id) => serviceById.get(id)!);
+    const serviceNames = orderedServices.map((service) => String(service.name));
+    const serviceName = serviceNames.join(' + ');
+    const totalPrice = orderedServices.reduce((sum, service) => sum + Number(service.price || 0), 0);
+    const totalDuration = orderedServices.reduce((sum, service) => sum + Number(service.durationMinutes || 30), 0);
+    if (!Number.isFinite(totalPrice) || totalPrice < 0 || !Number.isFinite(totalDuration) || totalDuration < 1 || totalDuration > 600) return NextResponse.json({ error: 'The selected services have invalid pricing or duration.' }, { status: 400 });
     const staffQuery: Record<string, unknown> = { salonId, active: true };
     if (input.staffId && input.staffId !== 'any') {
       if (!ObjectId.isValid(input.staffId)) return NextResponse.json({ error: 'Invalid barber selection.' }, { status: 400 });
@@ -68,7 +75,7 @@ export async function POST(request: Request) {
     const hours = settings?.openingHours?.[weekday] || { open: '10:00', close: '20:00', closed: false };
     if (hours.closed) return NextResponse.json({ error: 'The salon is closed on this day.' }, { status: 409 });
     const startAt = toDhakaDateTime(input.date, input.time);
-    const endAt = addMinutes(startAt, Number(service.durationMinutes || 30));
+    const endAt = addMinutes(startAt, totalDuration);
     if (startAt <= new Date() || startAt < toDhakaDateTime(input.date, hours.open) || endAt > toDhakaDateTime(input.date, hours.close)) return NextResponse.json({ error: 'That time is outside the available booking hours.' }, { status: 400 });
     const client = await getClient();
     session = client.startSession();
@@ -90,13 +97,14 @@ export async function POST(request: Request) {
           await db.collection('slotLocks').insertMany(barberSlots.map((slotKey) => ({ salonId, staffId: barber._id, slotKey, appointmentRef: bookingRef, expiresAt: addMinutes(endAt, 24 * 60), createdAt: new Date() })), { session, ordered: true });
           const appointment = {
             salonId, bookingRef, customerId: customer?._id, customerName: input.customerName, phone,
-            email: bookingEmail, serviceId: service._id, serviceName: service.name, staffId: barber._id, staffName: barber.name, staffEmail: barber.email || '',
-            price: Number(service.price), durationMinutes: Number(service.durationMinutes || 30), startAt, endAt,
+            email: bookingEmail, serviceId: orderedServices[0]._id, serviceIds: orderedServices.map((service) => service._id),
+            serviceName, serviceNames, staffId: barber._id, staffName: barber.name, staffEmail: barber.email || '',
+            price: totalPrice, durationMinutes: totalDuration, startAt, endAt,
             notes: input.notes, status: 'PENDING', paymentStatus: 'UNPAID', source: 'WEBSITE', createdAt: new Date(), updatedAt: new Date(),
           };
           const result = await db.collection('appointments').insertOne(appointment, { session });
           created = { ...appointment, _id: result.insertedId };
-          await db.collection('notifications').insertOne({ salonId, type: 'NEW_BOOKING', title: 'New appointment request', body: `${input.customerName} requested ${service.name}`, read: false, createdAt: new Date() }, { session });
+          await db.collection('notifications').insertOne({ salonId, type: 'NEW_BOOKING', title: 'New appointment request', body: `${input.customerName} requested ${serviceName}`, read: false, createdAt: new Date() }, { session });
         }, { readConcern: { level: 'snapshot' }, writeConcern: { w: 'majority' } });
         if (created) break;
       } catch (error) {
