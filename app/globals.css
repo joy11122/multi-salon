@@ -8,36 +8,22 @@
 @media print{body *{visibility:hidden!important}.booking-print-sheet,.booking-print-sheet *{visibility:visible!important}.booking-print-sheet{position:absolute!important;inset:0!important;width:100%!important;max-width:none!important;margin:0!important;padding:24px!important;border:0!important;background:#fff!important;color:#111!important;box-shadow:none!important}.booking-print-sheet .eyebrow{color:#805b1c!important}.booking-print-sheet .text-\[\#aaa\],.booking-print-sheet .text-\[\#999\]{color:#555!important}.booking-print-sheet .text-\[\#c6a15b\]{color:#805b1c!important}.booking-print-sheet .border-white\/10{border-color:#ddd!important}.booking-screen-actions{display:none!important}@page{size:A4;margin:14mm}}
 
 
-/* Premium global services directory */
-.services-page{background:radial-gradient(ellipse at 50% 0%,rgba(37,99,235,.10),transparent 42%),#080d18;color:#f8fafc}
-.services-heading{background:linear-gradient(115deg,rgba(13,25,47,.98),rgba(10,17,32,.93) 58%,rgba(20,32,61,.88))}
-.services-heading-glow{position:absolute;width:440px;height:320px;right:3%;top:-55%;border-radius:50%;background:rgba(37,99,235,.20);filter:blur(75px);pointer-events:none}
-.services-gradient-text{background:linear-gradient(95deg,#38bdf8 0%,#3b82f6 48%,#818cf8 100%);-webkit-background-clip:text;background-clip:text;color:transparent}
-.services-filter{background:rgba(15,23,42,.78);box-shadow:0 18px 55px rgba(0,0,0,.18);backdrop-filter:blur(18px)}
-.services-artwork{background:radial-gradient(ellipse at 50% 120%,rgba(59,130,246,.34),transparent 54%),linear-gradient(135deg,#17243b,#0d1525 58%,#17213a)}
+
+/* Public directory pages: established black, panel, gold and cream theme */
+.services-page,.barbers-page{background:var(--bg);color:var(--cream)}
+.services-heading,.barbers-heading{background:linear-gradient(120deg,#171717 0%,#101010 58%,#1b1812 100%);border-color:rgba(198,161,91,.18)}
+.services-heading-glow,.barbers-heading-glow{position:absolute;width:440px;height:320px;right:3%;top:-55%;border-radius:50%;background:rgba(198,161,91,.12);filter:blur(75px);pointer-events:none}
+.services-gradient-text,.barbers-gradient-text{background:linear-gradient(95deg,#f5f1e8 0%,#c6a15b 72%,#d8b875 100%);-webkit-background-clip:text;background-clip:text;color:transparent}
+.services-filter,.barbers-filter{background:rgba(23,23,23,.94);border-color:rgba(255,255,255,.09);box-shadow:0 18px 55px rgba(0,0,0,.22)}
+.services-artwork,.barber-profile-art{background:radial-gradient(ellipse at 50% 120%,rgba(198,161,91,.20),transparent 56%),linear-gradient(135deg,#24211b,#171717 58%,#100f0d)}
 .services-artwork:after{content:"";position:absolute;inset:0;background:linear-gradient(110deg,transparent 15%,rgba(255,255,255,.035) 48%,transparent 78%);pointer-events:none}
-.services-art-orb{position:absolute;border:1px solid rgba(125,211,252,.12);border-radius:9999px}
+.services-art-orb,.barber-profile-orb{position:absolute;border:1px solid rgba(198,161,91,.18);border-radius:9999px}
 .services-art-orb-one{width:210px;height:210px;left:calc(50% - 105px);top:calc(50% - 105px)}
-.services-art-orb-two{width:270px;height:270px;left:calc(50% - 135px);top:calc(50% - 135px);border-color:rgba(129,140,248,.10)}
-.premium-service-card{border:1px solid rgba(148,163,184,.13);background:linear-gradient(155deg,rgba(23,35,56,.98),rgba(11,18,32,.98));box-shadow:0 14px 38px rgba(0,0,0,.20);transition:transform .25s ease,border-color .25s ease,box-shadow .25s ease}
-.premium-service-card:hover{transform:translateY(-5px);border-color:rgba(56,189,248,.35);box-shadow:0 22px 50px rgba(2,132,199,.10)}
-.services-book-button{background:linear-gradient(100deg,#2998ed,#315bea);box-shadow:0 8px 22px rgba(37,99,235,.20);transition:filter .2s ease,transform .2s ease,box-shadow .2s ease}
-.services-book-button:hover{filter:brightness(1.12);transform:translateY(-1px);box-shadow:0 12px 26px rgba(37,99,235,.28)}
-.services-page input:focus-visible,.services-page select:focus-visible,.services-page button:focus-visible,.services-page a:focus-visible{outline:2px solid #38bdf8;outline-offset:3px}
-@media(prefers-reduced-motion:reduce){.premium-service-card,.services-book-button{transition:none}.premium-service-card:hover,.services-book-button:hover{transform:none}}
-
-
-/* Dynamic multi-salon barber directory */
-.barbers-page{background:radial-gradient(ellipse at 50% 0%,rgba(37,99,235,.10),transparent 42%),#080d18;color:#f8fafc}
-.barbers-heading{background:linear-gradient(115deg,rgba(13,25,47,.98),rgba(10,17,32,.93) 58%,rgba(20,32,61,.88))}
-.barbers-heading-glow{position:absolute;width:440px;height:320px;right:3%;top:-55%;border-radius:50%;background:rgba(37,99,235,.20);filter:blur(75px);pointer-events:none}
-.barbers-gradient-text{background:linear-gradient(95deg,#38bdf8 0%,#3b82f6 48%,#818cf8 100%);-webkit-background-clip:text;background-clip:text;color:transparent}
-.barbers-filter{background:rgba(15,23,42,.78);box-shadow:0 18px 55px rgba(0,0,0,.18);backdrop-filter:blur(18px)}
-.barber-profile-card{border:1px solid rgba(148,163,184,.13);background:linear-gradient(155deg,rgba(23,35,56,.98),rgba(11,18,32,.98));box-shadow:0 14px 38px rgba(0,0,0,.20);transition:transform .25s ease,border-color .25s ease,box-shadow .25s ease}
-.barber-profile-card:hover{transform:translateY(-5px);border-color:rgba(56,189,248,.35);box-shadow:0 22px 50px rgba(2,132,199,.10)}
-.barber-profile-art{background:radial-gradient(ellipse at 50% 120%,rgba(59,130,246,.34),transparent 54%),linear-gradient(135deg,#17243b,#0d1525 58%,#17213a)}
-.barber-profile-orb{position:absolute;width:210px;height:210px;border:1px solid rgba(125,211,252,.15);border-radius:9999px;box-shadow:0 0 0 28px rgba(125,211,252,.025),0 0 0 58px rgba(129,140,248,.02)}
-.barbers-book-button{background:linear-gradient(100deg,#2998ed,#315bea);box-shadow:0 8px 22px rgba(37,99,235,.20);transition:filter .2s ease,transform .2s ease,box-shadow .2s ease}
-.barbers-book-button:hover{filter:brightness(1.12);transform:translateY(-1px);box-shadow:0 12px 26px rgba(37,99,235,.28)}
-.barbers-page input:focus-visible,.barbers-page select:focus-visible,.barbers-page button:focus-visible,.barbers-page a:focus-visible{outline:2px solid #38bdf8;outline-offset:3px}
-@media(prefers-reduced-motion:reduce){.barber-profile-card,.barbers-book-button{transition:none}.barber-profile-card:hover,.barbers-book-button:hover{transform:none}}
+.services-art-orb-two{width:270px;height:270px;left:calc(50% - 135px);top:calc(50% - 135px);border-color:rgba(198,161,91,.12)}
+.barber-profile-orb{width:210px;height:210px;box-shadow:0 0 0 28px rgba(198,161,91,.025),0 0 0 58px rgba(198,161,91,.018)}
+.premium-service-card,.barber-profile-card{border:1px solid rgba(255,255,255,.09);background:linear-gradient(155deg,#1b1b1b,#141414);box-shadow:0 14px 38px rgba(0,0,0,.24);transition:transform .25s ease,border-color .25s ease,box-shadow .25s ease}
+.premium-service-card:hover,.barber-profile-card:hover{transform:translateY(-5px);border-color:rgba(198,161,91,.55);box-shadow:0 22px 50px rgba(0,0,0,.32)}
+.services-book-button,.barbers-book-button{background:var(--gold);color:#0b0b0b;box-shadow:0 8px 22px rgba(198,161,91,.14);transition:filter .2s ease,transform .2s ease,box-shadow .2s ease}
+.services-book-button:hover,.barbers-book-button:hover{background:#d8b875;filter:brightness(1.04);transform:translateY(-1px);box-shadow:0 12px 26px rgba(198,161,91,.20)}
+.services-page input:focus-visible,.services-page select:focus-visible,.services-page button:focus-visible,.services-page a:focus-visible,.barbers-page input:focus-visible,.barbers-page select:focus-visible,.barbers-page button:focus-visible,.barbers-page a:focus-visible{outline:2px solid var(--gold);outline-offset:3px}
+@media(prefers-reduced-motion:reduce){.premium-service-card,.barber-profile-card,.services-book-button,.barbers-book-button{transition:none}.premium-service-card:hover,.barber-profile-card:hover,.services-book-button:hover,.barbers-book-button:hover{transform:none}}
