@@ -58,14 +58,15 @@ export function BookingForm({ defaultName = '', defaultEmail = '', salonSlug }: 
 
   function toggleService(serviceId: string) {
     setError('');
-    setSelectedServiceIds((current) => {
-      if (current.includes(serviceId)) return current.filter((id) => id !== serviceId);
-      if (current.length >= MAX_SELECTED_SERVICES) {
+    if (selectedServiceIds.includes(serviceId)) {
+      setSelectedServiceIds(selectedServiceIds.filter((id) => id !== serviceId));
+    } else {
+      if (selectedServiceIds.length >= MAX_SELECTED_SERVICES) {
         setError(`You can select up to ${MAX_SELECTED_SERVICES} services per appointment.`);
-        return current;
+        return;
       }
-      return [...current, serviceId];
-    });
+      setSelectedServiceIds([...selectedServiceIds, serviceId]);
+    }
     setTime('');
   }
 
