@@ -10,6 +10,7 @@ export const salonSlugSchema = z.string().trim().toLowerCase().min(3).max(60).re
 
 export type SalonRole = 'OWNER' | 'ADMIN' | 'MANAGER' | 'STAFF';
 export const salonRoles: readonly SalonRole[] = ['OWNER', 'ADMIN', 'MANAGER', 'STAFF'];
+const rolePriority: Record<SalonRole, number> = { OWNER: 4, ADMIN: 3, MANAGER: 2, STAFF: 1 };
 
 export type SalonMembership = {
   _id: unknown;
@@ -19,6 +20,14 @@ export type SalonMembership = {
   role: SalonRole;
   status: 'ACTIVE' | 'PENDING' | 'SUSPENDED';
 };
+
+export function getHighestSalonRole(roles: readonly unknown[]): SalonRole | null {
+  const validRoles = roles.filter((role): role is SalonRole => salonRoles.includes(role as SalonRole));
+  if (!validRoles.length) return null;
+  return validRoles.reduce((highest, role) =>
+    rolePriority[role] > rolePriority[highest] ? role : highest,
+  );
+}
 
 export function createSalonSlug(value: string): string {
   return value
@@ -59,13 +68,19 @@ export async function requireSalonMembership(
   const identities: Record<string, string>[] = [{ userId: session.user.id }];
   if (email) identities.push({ email });
 
-  const membership = await (await getDb()).collection('salonMemberships').findOne({
+  const memberships = await (await getDb()).collection('salonMemberships').find({
     salonId,
     status: 'ACTIVE',
     $or: identities,
-  }) as SalonMembership | null;
+  }).toArray() as SalonMembership[];
 
-  if (!membership || !hasSalonRole(membership.role, allowedRoles)) {
+  // Resolve duplicate/legacy rows consistently with the workspace list.
+  const role = getHighestSalonRole(memberships.map((membership) => membership.role));
+  const membership = role
+    ? memberships.find((item) => item.role === role) || null
+    : null;
+
+  if (!membership || !hasSalonRole(role || '', allowedRoles)) {
     return { response: NextResponse.json({ error: 'You do not have access to this salon.' }, { status: 403 }) };
   }
 
