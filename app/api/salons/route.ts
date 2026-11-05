@@ -44,7 +44,18 @@ export async function GET() {
       status: 'ACTIVE',
     }).project({ name: 1, slug: 1, status: 1, phone: 1, address: 1 }).sort({ name: 1 }).toArray();
 
-    const roleBySalon = new Map(memberships.map((membership) => [String(membership.salonId), String(membership.role)]));
+    // Prefer the highest workspace role if legacy/duplicate membership rows exist.
+    // A duplicate STAFF row must never downgrade an OWNER/ADMIN/MANAGER workspace link.
+    const rolePriority: Record<string, number> = { OWNER: 4, ADMIN: 3, MANAGER: 2, STAFF: 1 };
+    const roleBySalon = new Map<string, string>();
+    for (const membership of memberships) {
+      const salonId = String(membership.salonId);
+      const role = String(membership.role || 'STAFF');
+      const currentRole = roleBySalon.get(salonId);
+      if (!currentRole || (rolePriority[role] || 0) > (rolePriority[currentRole] || 0)) {
+        roleBySalon.set(salonId, role);
+      }
+    }
     return NextResponse.json({
       salons: salons.map((salon) => ({
         id: String(salon.salonId),
