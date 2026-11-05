@@ -70,7 +70,7 @@ export async function GET() {
     }).project({ salonId: 1, name: 1, slug: 1, status: 1, phone: 1, address: 1 }).sort({ name: 1 }).toArray();
 
     return NextResponse.json({
-      ownerCount,\n      maxOwnedSalons: MAX_OWNED_SALONS,\n      canCreateSalon: ownerCount < MAX_OWNED_SALONS,\n      salons: salons.map((salon) => ({
+      salons: salons.map((salon) => ({
         id: String(salon.salonId),
         name: salon.name,
         slug: salon.slug,
