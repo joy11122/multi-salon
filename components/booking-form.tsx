@@ -116,7 +116,7 @@ export function BookingForm({ defaultName = '', defaultEmail = '', salonSlug, sa
       {step===1&&<div>
         <p className="eyebrow">STEP 01</p><h2 className="serif mt-3 text-3xl">Choose your experience.</h2>
         <p className="mt-2 text-sm text-[#999]">Browse by category and select all the services you need.</p>
-        {salons.length > 0 && <label className="mt-6 block"><span className="eyebrow">SELECT SALON</span><select aria-label="Select salon" className={`${inputClass} mt-2`} value={selectedSalonSlug} onChange={(event)=>setSelectedSalonSlug(event.target.value)}><option value="">Choose a salon</option>{salons.map((item)=><option key={item.slug} value={item.slug}>{item.name}{item.address ? ` · ${item.address}` : '''}</option>)}</select></label>}
+        {salons.length > 0 && <label className="mt-6 block"><span className="eyebrow">SELECT SALON</span><select aria-label="Select salon" className={`${inputClass} mt-2`} value={selectedSalonSlug} onChange={(event)=>setSelectedSalonSlug(event.target.value)}><option value="">Choose a salon</option>{salons.map((item)=><option key={item.slug} value={item.slug}>{item.name}{item.address ? ` · ${item.address}` : ''}</option>)}</select></label>}
         {!salons.length && !salonSlug && <p className="mt-5 border border-[#c6a15b]/30 p-4 text-sm text-[#c6a15b]">No active salons are available for online booking yet.</p>}
         {selectedSalonSlug ? <>
         {!services.length&&<p className="mt-5 border border-[#c6a15b]/30 p-4 text-sm text-[#c6a15b]">The service menu is not configured yet. Please check back soon.</p>}
