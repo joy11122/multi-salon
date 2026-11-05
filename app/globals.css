@@ -6,3 +6,22 @@
 :focus-visible{outline:2px solid var(--gold);outline-offset:3px}::selection{background:rgba(198,161,91,.35);color:#fff}input,textarea,select{color-scheme:dark}button:disabled{cursor:not-allowed}html,body{min-height:100%}
 
 @media print{body *{visibility:hidden!important}.booking-print-sheet,.booking-print-sheet *{visibility:visible!important}.booking-print-sheet{position:absolute!important;inset:0!important;width:100%!important;max-width:none!important;margin:0!important;padding:24px!important;border:0!important;background:#fff!important;color:#111!important;box-shadow:none!important}.booking-print-sheet .eyebrow{color:#805b1c!important}.booking-print-sheet .text-\[\#aaa\],.booking-print-sheet .text-\[\#999\]{color:#555!important}.booking-print-sheet .text-\[\#c6a15b\]{color:#805b1c!important}.booking-print-sheet .border-white\/10{border-color:#ddd!important}.booking-screen-actions{display:none!important}@page{size:A4;margin:14mm}}
+
+
+/* Premium global services directory */
+.services-page{background:radial-gradient(ellipse at 50% 0%,rgba(37,99,235,.10),transparent 42%),#080d18;color:#f8fafc}
+.services-heading{background:linear-gradient(115deg,rgba(13,25,47,.98),rgba(10,17,32,.93) 58%,rgba(20,32,61,.88))}
+.services-heading-glow{position:absolute;width:440px;height:320px;right:3%;top:-55%;border-radius:50%;background:rgba(37,99,235,.20);filter:blur(75px);pointer-events:none}
+.services-gradient-text{background:linear-gradient(95deg,#38bdf8 0%,#3b82f6 48%,#818cf8 100%);-webkit-background-clip:text;background-clip:text;color:transparent}
+.services-filter{background:rgba(15,23,42,.78);box-shadow:0 18px 55px rgba(0,0,0,.18);backdrop-filter:blur(18px)}
+.services-artwork{background:radial-gradient(ellipse at 50% 120%,rgba(59,130,246,.34),transparent 54%),linear-gradient(135deg,#17243b,#0d1525 58%,#17213a)}
+.services-artwork:after{content:"";position:absolute;inset:0;background:linear-gradient(110deg,transparent 15%,rgba(255,255,255,.035) 48%,transparent 78%);pointer-events:none}
+.services-art-orb{position:absolute;border:1px solid rgba(125,211,252,.12);border-radius:9999px}
+.services-art-orb-one{width:210px;height:210px;left:calc(50% - 105px);top:calc(50% - 105px)}
+.services-art-orb-two{width:270px;height:270px;left:calc(50% - 135px);top:calc(50% - 135px);border-color:rgba(129,140,248,.10)}
+.premium-service-card{border:1px solid rgba(148,163,184,.13);background:linear-gradient(155deg,rgba(23,35,56,.98),rgba(11,18,32,.98));box-shadow:0 14px 38px rgba(0,0,0,.20);transition:transform .25s ease,border-color .25s ease,box-shadow .25s ease}
+.premium-service-card:hover{transform:translateY(-5px);border-color:rgba(56,189,248,.35);box-shadow:0 22px 50px rgba(2,132,199,.10)}
+.services-book-button{background:linear-gradient(100deg,#2998ed,#315bea);box-shadow:0 8px 22px rgba(37,99,235,.20);transition:filter .2s ease,transform .2s ease,box-shadow .2s ease}
+.services-book-button:hover{filter:brightness(1.12);transform:translateY(-1px);box-shadow:0 12px 26px rgba(37,99,235,.28)}
+.services-page input:focus-visible,.services-page select:focus-visible,.services-page button:focus-visible,.services-page a:focus-visible{outline:2px solid #38bdf8;outline-offset:3px}
+@media(prefers-reduced-motion:reduce){.premium-service-card,.services-book-button{transition:none}.premium-service-card:hover,.services-book-button:hover{transform:none}}
