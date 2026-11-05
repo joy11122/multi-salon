@@ -6,12 +6,13 @@ import { rateLimit } from '@/lib/rate-limit';
 import { findActiveSalonBySlug } from '@/lib/tenancy';
 
 export async function GET(request: Request) {
-  const ip=request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()||'unknown';
-  if(!rateLimit(`availability:${ip}`,40,60_000).allowed)return NextResponse.json({error:'Too many availability requests. Please wait a moment.'},{status:429});
+  const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
+  if (!rateLimit(`availability:${ip}`, 40, 60_000).allowed) return NextResponse.json({ error: 'Too many availability requests. Please wait a moment.' }, { status: 429 });
   try {
     const { searchParams } = new URL(request.url);
     const date = searchParams.get('date') || '';
-    const serviceId = searchParams.get('serviceId') || '';
+    const rawServiceIds = searchParams.get('serviceIds') || searchParams.get('serviceId') || '';
+    const serviceIds = [...new Set(rawServiceIds.split(',').filter(Boolean))];
     const staffId = searchParams.get('staffId') || 'any';
     const salonSlug = searchParams.get('salonSlug');
     let salonId = SALON_ID;
@@ -21,11 +22,13 @@ export async function GET(request: Request) {
       salonId = String(salon.salonId);
     }
     const parsedDate = new Date(`${date}T00:00:00Z`);
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || Number.isNaN(parsedDate.getTime()) || parsedDate.toISOString().slice(0, 10) !== date || !ObjectId.isValid(serviceId)) return NextResponse.json({ error: 'A valid date and service are required.' }, { status: 400 });
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || Number.isNaN(parsedDate.getTime()) || parsedDate.toISOString().slice(0, 10) !== date || !serviceIds.length || serviceIds.length > 10 || serviceIds.some((id) => !ObjectId.isValid(id))) return NextResponse.json({ error: 'A valid date and service selection are required.' }, { status: 400 });
     if (date < getDhakaDate()) return NextResponse.json({ slots: [] });
     const db = await getDb();
-    const service = await db.collection('services').findOne({ _id: new ObjectId(serviceId), salonId, active: true });
-    if (!service) return NextResponse.json({ error: 'Service not found.' }, { status: 404 });
+    const services = await db.collection('services').find({ _id: { $in: serviceIds.map((id) => new ObjectId(id)) }, salonId, active: true }).toArray();
+    if (services.length !== serviceIds.length) return NextResponse.json({ error: 'One or more services were not found.' }, { status: 404 });
+    const totalDuration = services.reduce((sum, service) => sum + Number(service.durationMinutes || 30), 0);
+    if (!Number.isFinite(totalDuration) || totalDuration < 1 || totalDuration > 600) return NextResponse.json({ error: 'Selected service duration is invalid.' }, { status: 400 });
     const staffFilter: Record<string, unknown> = { salonId, active: true };
     if (staffId !== 'any') { if (!ObjectId.isValid(staffId)) return NextResponse.json({ error: 'Invalid barber.' }, { status: 400 }); staffFilter._id = new ObjectId(staffId); }
     const staff = await db.collection('staff').find(staffFilter).toArray();
@@ -39,9 +42,9 @@ export async function GET(request: Request) {
     const now = new Date();
     const slots: { time: string; staffId: string; staffName: string }[] = [];
     for (const barber of staff) {
-      for (let cursor = new Date(start); addMinutes(cursor, Number(service.durationMinutes || 30)) <= close; cursor = addMinutes(cursor, 30)) {
+      for (let cursor = new Date(start); addMinutes(cursor, totalDuration) <= close; cursor = addMinutes(cursor, 30)) {
         if (cursor <= now) continue;
-        const end = addMinutes(cursor, Number(service.durationMinutes || 30));
+        const end = addMinutes(cursor, totalDuration);
         const busy = await db.collection('appointments').findOne({ salonId, staffId: barber._id, status: { $nin: ['CANCELLED', 'REJECTED'] }, startAt: { $lt: end }, endAt: { $gt: cursor } }, { projection: { _id: 1 } });
         if (!busy) slots.push({ time: new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Dhaka', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(cursor), staffId: String(barber._id), staffName: barber.name });
       }
