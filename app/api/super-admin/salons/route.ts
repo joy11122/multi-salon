@@ -29,7 +29,7 @@ export async function PATCH(request: Request) {
       : { salonId };
     const client = await getClient();
     const mongoSession = client.startSession();
-    let outcome: { status: string; unchanged?: boolean } | null = null;
+    let unchanged = false;
 
     try {
       await mongoSession.withTransaction(async () => {
@@ -37,7 +37,7 @@ export async function PATCH(request: Request) {
         if (!salon) throw new Error('SALON_NOT_FOUND');
         const previousStatus = String(salon.status || 'UNKNOWN');
         if (previousStatus === status) {
-          outcome = { status: previousStatus, unchanged: true };
+          unchanged = true;
           return;
         }
         const statusFilter = salon.status === undefined
@@ -61,14 +61,13 @@ export async function PATCH(request: Request) {
           actorEmail: session.user.email || null,
           createdAt: now,
         }, { session: mongoSession });
-        outcome = { status };
+        unchanged = false;
       }, { readConcern: { level: 'snapshot' }, writeConcern: { w: 'majority' } });
     } finally {
       await mongoSession.endSession();
     }
 
-    if (!outcome) return NextResponse.json({ error: 'Could not confirm the salon update.' }, { status: 500 });
-    return NextResponse.json({ success: true, ...outcome });
+    return NextResponse.json({ success: true, status, unchanged });
   } catch (error) {
     if (error instanceof Error && error.message === 'SALON_NOT_FOUND') return NextResponse.json({ error: 'Salon not found.' }, { status: 404 });
     if (error instanceof Error && error.message === 'SALON_STATUS_CONFLICT') return NextResponse.json({ error: 'Salon status changed concurrently. Refresh and try again.' }, { status: 409 });
