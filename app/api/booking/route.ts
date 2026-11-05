@@ -19,11 +19,12 @@ export async function GET(request: Request) {
       salonId = String(salon.salonId);
     }
     const db = await getDb();
-    const [services, staff] = await Promise.all([
+    const [services, staff, salon] = await Promise.all([
       db.collection('services').find({ salonId, active: true }).project({ name: 1, description: 1, price: 1, durationMinutes: 1, category: 1 }).sort({ sortOrder: 1, name: 1 }).limit(500).toArray(),
       db.collection('staff').find({ salonId, active: true }).project({ name: 1, title: 1, specialties: 1 }).sort({ name: 1 }).toArray(),
+      salonSlug ? db.collection('salons').findOne({ salonId, status: 'ACTIVE' }, { projection: { name: 1, phone: 1, address: 1 } }) : db.collection('settings').findOne({ _id: 'salon' as never }, { projection: { name: 1, phone: 1, address: 1 } }),
     ]);
-    return NextResponse.json({ services, staff });
+    return NextResponse.json({ services, staff, salon: salon ? { name: salon.name || 'Salon', phone: salon.phone || '', address: salon.address || '' } : { name: 'Salon', phone: '', address: '' } });
   } catch (error) {
     console.error('booking_catalog_failed', error);
     return NextResponse.json({ error: 'Booking is temporarily unavailable.' }, { status: 503 });
