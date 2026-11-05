@@ -17,6 +17,22 @@ export function ensureIndexes(): Promise<void> {
         if (mongoError.code !== 27 && mongoError.code !== 26) throw error;
       }
 
+      // Replace the legacy staff email index before creating the partial
+      // tenant-scoped index. Older deployments created the same index name
+      // without a partialFilterExpression, which MongoDB rejects as a spec conflict.
+      const staff = db.collection('staff');
+      try {
+        const existingIndexes = await staff.listIndexes().toArray();
+        const legacyEmailIndex = existingIndexes.find((index) => index.name === 'salonId_1_email_1');
+        if (legacyEmailIndex && !legacyEmailIndex.partialFilterExpression) {
+          await staff.dropIndex('salonId_1_email_1');
+        }
+      } catch (error) {
+        const mongoError = error as { code?: number };
+        // Another serverless instance may have removed the same legacy index.
+        if (mongoError.code !== 27 && mongoError.code !== 26) throw error;
+      }
+
       await Promise.all([
         db.collection('users').createIndex({ email: 1 }, { unique: true, sparse: true }),
         db.collection('salons').createIndex({ slug: 1 }, { unique: true }),
