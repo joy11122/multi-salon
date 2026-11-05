@@ -16,7 +16,7 @@ const createSalonSchema = z.object({
   address: z.string().trim().max(300).default(''),
 }).strict();
 
-const defaultOpeningHours = Array.from({ length: 7 }, () => ({
+const MAX_OWNED_SALONS = 5;\n\nconst defaultOpeningHours = Array.from({ length: 7 }, () => ({
   open: '10:00',
   close: '20:00',
   closed: false,
@@ -70,7 +70,7 @@ export async function GET() {
     }).project({ salonId: 1, name: 1, slug: 1, status: 1, phone: 1, address: 1 }).sort({ name: 1 }).toArray();
 
     return NextResponse.json({
-      salons: salons.map((salon) => ({
+      ownerCount,\n      maxOwnedSalons: MAX_OWNED_SALONS,\n      canCreateSalon: ownerCount < MAX_OWNED_SALONS,\n      salons: salons.map((salon) => ({
         id: String(salon.salonId),
         name: salon.name,
         slug: salon.slug,
