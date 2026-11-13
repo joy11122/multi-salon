@@ -1,6 +1,20 @@
 import { getDb } from './client';
 
 let indexesPromise: Promise<void> | undefined;
+let salonLocationIndexPromise: Promise<void> | undefined;
+
+export function ensureSalonLocationIndex(): Promise<void> {
+  if (!salonLocationIndexPromise) {
+    salonLocationIndexPromise = getDb().then((db) => db.collection('salons').createIndex(
+      { location: '2dsphere' },
+      { name: 'salon_location_2dsphere', partialFilterExpression: { location: { $type: 'object' } } },
+    )).then(() => undefined).catch((error) => {
+      salonLocationIndexPromise = undefined;
+      throw error;
+    });
+  }
+  return salonLocationIndexPromise;
+}
 
 export function ensureIndexes(): Promise<void> {
   if (!indexesPromise) {
