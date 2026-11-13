@@ -1,4 +1,5 @@
 import { getDb } from "@/lib/db/client";
+import { captureOperationalError } from "@/lib/monitoring";
 type Notice = { salonId: string; bookingRef: string; customerName: string; phone: string; email: string; serviceName: string; staffName: string; startAt: Date; price: number; salonName: string };
 async function email(to: string, subject: string, text: string) {
   if (!to || !process.env.RESEND_API_KEY || !process.env.RESEND_FROM_EMAIL) return { skipped: true };
@@ -27,7 +28,7 @@ async function audit(n: { salonId: string; bookingRef: string; channel: string; 
 }
 async function deliver(n: { salonId: string; bookingRef: string; channel: string; recipient: string; run: () => Promise<{ skipped?: boolean; id?: string; sid?: string }> }) {
   try { const r = await n.run(); await audit({ salonId: n.salonId, bookingRef: n.bookingRef, channel: n.channel, recipient: n.recipient, status: r.skipped ? "SKIPPED_NOT_CONFIGURED" : "SENT", providerId: r.id || r.sid }); }
-  catch (e) { console.error("notification_failed", { channel: n.channel, bookingRef: n.bookingRef, error: e }); await audit({ salonId: n.salonId, bookingRef: n.bookingRef, channel: n.channel, recipient: n.recipient, status: "FAILED", error: e instanceof Error ? e.message : "Provider error" }); }
+  catch (e) { console.error("notification_failed", { channel: n.channel, bookingRef: n.bookingRef, error: e }); await audit({ salonId: n.salonId, bookingRef: n.bookingRef, channel: n.channel, recipient: n.recipient, status: "FAILED", error: e instanceof Error ? e.message : "Provider error" }); await captureOperationalError({ error: e, route: "booking-notification/" + n.channel, method: "DELIVERY", salonId: n.salonId, severity: "warning", metadata: { bookingRef: n.bookingRef, recipient: n.recipient } }); }
 }
 export async function sendBookingNotifications(b: Notice) {
   const when = new Intl.DateTimeFormat("en-BD", { timeZone: "Asia/Dhaka", dateStyle: "full", timeStyle: "short" }).format(b.startAt);
