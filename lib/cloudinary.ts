@@ -5,7 +5,8 @@ export function createCloudinaryUploadSignature(timestamp: number, folder: strin
   const apiKey = process.env.CLOUDINARY_API_KEY;
   const apiSecret = process.env.CLOUDINARY_API_SECRET;
   if (!cloudName || !apiKey || !apiSecret) throw new Error("Cloudinary is not configured.");
-  const params = "folder=" + folder + "&timestamp=" + timestamp;
+  const allowedFormats = "avif,jpg,png,webp";
+  const params = "allowed_formats=" + allowedFormats + "&folder=" + folder + "&timestamp=" + timestamp;
   const signature = createHash("sha1").update(params + apiSecret).digest("hex");
   return { cloudName, apiKey, timestamp, folder, allowedFormats, signature };
 }
