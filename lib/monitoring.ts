@@ -8,7 +8,7 @@ export async function captureOperationalError(input: { error: unknown; route: st
   catch (storageError) { console.error("monitoring_event_persist_failed", storageError); }
   const webhook = process.env.ALERT_WEBHOOK_URL;
   if (webhook) {
-    try { await fetch(webhook, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: "[" + event.severity.toUpperCase() + "] " + event.route + ": " + event.message, ...event }), signal: AbortSignal.timeout(4000) }); }
+    try { await fetch(webhook, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: "[" + event.severity.toUpperCase() + "] " + event.route + ": " + event.message, severity: event.severity, route: event.route, createdAt: event.createdAt.toISOString() }), signal: AbortSignal.timeout(4000) }); }
     catch (alertError) { console.error("monitoring_alert_delivery_failed", alertError); }
   }
 }
