@@ -13,6 +13,7 @@ const sections = [
   ['Customers', '/customers'],
   ['Payments', '/payments'],
   ['Refunds', '/refunds'],
+  ['Monitoring', '/monitoring'],
   ['Offers', '/offers'],
   ['Reviews', '/reviews'],
   ['Settings', '/settings'],
