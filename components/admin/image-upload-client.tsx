@@ -6,7 +6,7 @@ export function ImageUploadClient({salonSlug}:{salonSlug:string}) {
   if(!["image/jpeg","image/png","image/webp","image/avif"].includes(file.type))throw new Error("Choose a JPG, PNG, WebP or AVIF image.");
   if(file.size>8*1024*1024)throw new Error("Image must be 8 MB or smaller.");
   const sig=await fetch("/api/admin/uploads/signature",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({salonSlug})});const s=await sig.json();if(!sig.ok)throw new Error(s.error);
-  const form=new FormData();form.append("file",file);form.append("api_key",s.apiKey);form.append("timestamp",String(s.timestamp));form.append("folder",s.folder);form.append("signature",s.signature);
+  const form=new FormData();form.append("file",file);form.append("api_key",s.apiKey);form.append("timestamp",String(s.timestamp));form.append("folder",s.folder);form.append("allowed_formats",s.allowedFormats);form.append("signature",s.signature);
   const response=await fetch("https://api.cloudinary.com/v1_1/"+s.cloudName+"/image/upload",{method:"POST",body:form});const data=await response.json();if(!response.ok)throw new Error(data.error?.message||"Image upload failed.");
   setUrl(data.secure_url);setMessage("Upload complete. Copy the secure URL into the relevant service or staff image field.");
  }catch(e){setMessage(e instanceof Error?e.message:"Upload failed.");}finally{setBusy(false);}}
