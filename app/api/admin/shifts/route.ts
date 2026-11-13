@@ -5,7 +5,7 @@ import { auth } from "@/lib/auth";
 import { getDb } from "@/lib/db/client";
 import { findActiveSalonBySlug, requireSalonMembership } from "@/lib/tenancy";
 import { captureOperationalError } from "@/lib/monitoring";
-import { addMinutes, getDhakaDate, getDhakaTime, toDhakaDateTime } from "@/lib/utils";
+import { addMinutes, toDhakaDateTime } from "@/lib/utils";
 import { bookingConflictsWithShift } from "@/lib/shifts";
 
 const time = z.string().regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/);
