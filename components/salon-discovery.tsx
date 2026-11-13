@@ -27,7 +27,7 @@ export function SalonDiscovery() {
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
 
-  const search = useCallback(async (options?: { lat: number; lng: number }) => {
+  const search = useCallback(async (options?: { lat: number; lng: number; radiusKm?: string }) => {
     setLoading(true);
     setError('');
     try {
@@ -35,7 +35,7 @@ export function SalonDiscovery() {
       if (options) {
         params.set('lat', String(options.lat));
         params.set('lng', String(options.lng));
-        params.set('radius', radius);
+        params.set('radius', options.radiusKm || radius);
       } else if (area.trim()) {
         params.set('area', area.trim());
       }
@@ -43,7 +43,7 @@ export function SalonDiscovery() {
       const data = await response.json() as DiscoveryResponse;
       if (!response.ok) throw new Error(data.error || 'Could not find salons.');
       setSalons(Array.isArray(data.salons) ? data.salons : []);
-      setNotice(options ? `Showing salons within ${radius} km of your location.` : area.trim() ? `Showing salon matches for “${area.trim()}”.` : 'Showing all published salons.');
+      setNotice(options ? `Showing salons within ${options.radiusKm || radius} km of your location.` : area.trim() ? `Showing salon matches for “${area.trim()}”.` : 'Showing all published salons.');
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not find salons.');
     } finally {
@@ -51,7 +51,7 @@ export function SalonDiscovery() {
     }
   }, [area, radius]);
 
-  useEffect(() => { void search(); }, []);
+  useEffect(() => { void search(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   function useCurrentLocation() {
     if (!('geolocation' in navigator)) {
@@ -101,7 +101,7 @@ export function SalonDiscovery() {
           </form>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
             <label className="text-xs text-[#c6a15b]">DISTANCE
-              <select value={radius} onChange={(event) => setRadius(event.target.value)} className="mt-2 block w-full border border-white/15 bg-[#0b0b0b] px-3 py-3 text-sm text-white sm:w-28">
+              <select value={radius} onChange={(event) => { const nextRadius = event.target.value; setRadius(nextRadius); if (coordinates) void search({ ...coordinates, radiusKm: nextRadius }); }} className="mt-2 block w-full border border-white/15 bg-[#0b0b0b] px-3 py-3 text-sm text-white sm:w-28">
                 <option value="1">1 km</option><option value="5">5 km</option><option value="10">10 km</option><option value="25">25 km</option><option value="50">50 km</option>
               </select>
             </label>
