@@ -32,7 +32,7 @@ Set ALERT_WEBHOOK_URL to a trusted Slack/Teams-compatible incoming webhook or al
 Open /salons/{slug}/admin/shifts. Configure one weekly shift per staff member per weekday, add an optional break inside the shift, and record full-day or partial leave. Both availability lookup and booking creation enforce schedules and leave. Legacy staff with no schedule records continue using salon opening hours until a weekly schedule is configured.
 
 ## Booking notifications
-After the booking transaction commits, the app attempts email, SMS and WhatsApp delivery. A provider outage does not undo a booking. Each delivery is recorded in notificationDeliveries as SENT, FAILED or SKIPPED_NOT_CONFIGURED. Delivery depends on provider approval, sender verification, recipient consent and country-specific routing rules.
+After the booking transaction commits, the app attempts transactional email delivery. SMS and WhatsApp are sent only when the customer explicitly opts in on the booking form. A provider outage does not undo a booking. Each delivery is recorded in notificationDeliveries as SENT, FAILED or SKIPPED_NOT_CONFIGURED. Delivery depends on provider approval, sender verification, recipient consent and country-specific routing rules.
 
 ## Database indexes
 The booking API ensureIndexes routine now creates indexes for shifts, leave, notification delivery, refunds and monitoring. For deployments that do not execute booking before admin usage, run the project's index/seed setup during deployment or add these indexes through Atlas.
