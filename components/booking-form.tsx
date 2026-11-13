@@ -24,7 +24,7 @@ export function BookingForm({ defaultName = '', defaultEmail = '', salonSlug, sa
   const [date, setDate] = useState('');
   const [time, setTime] = useState('');
   const [slots, setSlots] = useState<Slot[]>([]);
-  const [details, setDetails] = useState({ customerName: defaultName, phone: '', email: defaultEmail, notes: '' });
+  const [details, setDetails] = useState({ customerName: defaultName, phone: '', email: defaultEmail, notes: '', notificationConsent: false });
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
