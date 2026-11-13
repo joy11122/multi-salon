@@ -8,7 +8,7 @@ export async function rateLimit(key: string, limit = 8, windowMs = 60_000): Prom
   const url = process.env.UPSTASH_REDIS_REST_URL;
   const token = process.env.UPSTASH_REDIS_REST_TOKEN;
   if (url && token) {
-    const redisKey = "multi-salon:ratelimit:" + key;
+    const redisKey = "multi-salon:ratelimit:" + createHash("sha256").update(key).digest("hex");
     const script = "local n=redis.call('INCR',KEYS[1]); if n==1 then redis.call('PEXPIRE',KEYS[1],ARGV[1]); end; local ttl=redis.call('PTTL',KEYS[1]); return {n,ttl}";
     try {
       const response = await fetch(url.replace(/\/$/, ""), { method: "POST", headers: { Authorization: "Bearer " + token, "Content-Type": "application/json" }, body: JSON.stringify(["EVAL", script, "1", redisKey, String(windowMs)]), cache: "no-store", signal: AbortSignal.timeout(2500) });
