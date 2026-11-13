@@ -47,3 +47,38 @@ describe('Dhaka date helpers', () => {
     expect(getDhakaDate(new Date('2027-01-10T18:30:00Z'))).toBe('2027-01-11');
   });
 });
+
+
+describe('booking slot locks', () => {
+  it('creates every 15-minute lock bucket touched by a booking', async () => {
+    const { buildSlotLockKeys } = await import('../lib/booking-slots');
+    const keys = buildSlotLockKeys(new Date('2027-01-10T04:00:00Z'), new Date('2027-01-10T05:00:00Z'));
+    expect(keys).toEqual([
+      '2027-01-10T04:00:00.000Z',
+      '2027-01-10T04:15:00.000Z',
+      '2027-01-10T04:30:00.000Z',
+      '2027-01-10T04:45:00.000Z',
+    ]);
+  });
+
+  it('shares a lock for partially overlapping bookings', async () => {
+    const { buildSlotLockKeys } = await import('../lib/booking-slots');
+    const first = buildSlotLockKeys(new Date('2027-01-10T04:00:00Z'), new Date('2027-01-10T05:00:00Z'));
+    const second = buildSlotLockKeys(new Date('2027-01-10T04:30:00Z'), new Date('2027-01-10T05:30:00Z'));
+    expect(first.some((key) => second.includes(key))).toBe(true);
+  });
+
+  it('does not share a lock when one booking starts exactly as another ends', async () => {
+    const { buildSlotLockKeys } = await import('../lib/booking-slots');
+    const first = buildSlotLockKeys(new Date('2027-01-10T04:00:00Z'), new Date('2027-01-10T05:00:00Z'));
+    const second = buildSlotLockKeys(new Date('2027-01-10T05:00:00Z'), new Date('2027-01-10T05:30:00Z'));
+    expect(first.some((key) => second.includes(key))).toBe(false);
+  });
+
+  it('rejects invalid intervals and slot sizes', async () => {
+    const { buildSlotLockKeys } = await import('../lib/booking-slots');
+    expect(() => buildSlotLockKeys(new Date('invalid'), new Date())).toThrow(RangeError);
+    expect(() => buildSlotLockKeys(new Date('2027-01-10T04:00:00Z'), new Date('2027-01-10T04:00:00Z'))).toThrow(RangeError);
+    expect(() => buildSlotLockKeys(new Date('2027-01-10T04:00:00Z'), new Date('2027-01-10T04:15:00Z'), 0)).toThrow(RangeError);
+  });
+});
