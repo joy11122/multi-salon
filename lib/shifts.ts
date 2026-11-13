@@ -1,7 +1,26 @@
 import { ObjectId } from "mongodb";
 import { getDb } from "@/lib/db/client";
+import { getDhakaDate, getDhakaTime } from "@/lib/utils";
 
 function minuteOfDay(value: string) { const parts = value.split(":").map(Number); return parts[0] * 60 + parts[1]; }
+
+export function bookingConflictsWithShift(
+  booking: { startAt: Date; endAt: Date },
+  shift: { dayOfWeek: number; startTime: string; endTime: string; active?: boolean; breaks?: Array<{ startTime: string; endTime: string }> },
+) {
+  const date = getDhakaDate(booking.startAt);
+  const weekday = new Date(date + "T06:00:00Z").getUTCDay();
+  if (weekday !== shift.dayOfWeek) return false;
+  if (shift.active === false) return true;
+  const start = minuteOfDay(getDhakaTime(booking.startAt));
+  const endDate = getDhakaDate(booking.endAt);
+  const end = minuteOfDay(getDhakaTime(booking.endAt)) + (endDate !== date ? 1440 : 0);
+  if (start < minuteOfDay(shift.startTime) || end > minuteOfDay(shift.endTime)) return true;
+  return Array.isArray(shift.breaks) && shift.breaks.some((pause) => (
+    start < minuteOfDay(pause.endTime) && end > minuteOfDay(pause.startTime)
+  ));
+}
+
 const dhakaTime = (date: Date) => new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Dhaka", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(date);
 
 export async function getStaffScheduleChecker(input: { salonId: string; staffId: ObjectId; date: string }) {
