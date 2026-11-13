@@ -4,7 +4,7 @@ import { getDb } from '@/lib/db/client';
 import { SALON_ID, addMinutes, toDhakaDateTime, getDhakaDate } from '@/lib/utils';
 import { rateLimit } from '@/lib/rate-limit';
 import { findActiveSalonBySlug } from '@/lib/tenancy';
-import { isStaffScheduled } from '@/lib/shifts';
+import { getStaffScheduleChecker } from '@/lib/shifts';
 import { captureOperationalError } from '@/lib/monitoring';
 
 export async function GET(request: Request) {
@@ -44,10 +44,11 @@ export async function GET(request: Request) {
     const now = new Date();
     const slots: { time: string; staffId: string; staffName: string }[] = [];
     for (const barber of staff) {
+      const isScheduled = await getStaffScheduleChecker({ salonId, staffId: barber._id, date });
       for (let cursor = new Date(start); addMinutes(cursor, totalDuration) <= close; cursor = addMinutes(cursor, 30)) {
         if (cursor <= now) continue;
         const end = addMinutes(cursor, totalDuration);
-        if (!(await isStaffScheduled({ salonId, staffId: barber._id, date, startAt: cursor, endAt: end }))) continue;
+        if (!isScheduled(cursor, end)) continue;
         const busy = await db.collection('appointments').findOne({ salonId, staffId: barber._id, status: { $nin: ['CANCELLED', 'REJECTED'] }, startAt: { $lt: end }, endAt: { $gt: cursor } }, { projection: { _id: 1 } });
         if (!busy) slots.push({ time: new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Dhaka', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(cursor), staffId: String(barber._id), staffName: barber.name });
       }
