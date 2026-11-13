@@ -6,7 +6,7 @@ import { rateLimit } from '@/lib/rate-limit';
 
 export async function POST(request: Request) {
   const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
-  if (!rateLimit(`register:${ip}`, 5, 60_000).allowed) return NextResponse.json({ error: 'Too many registration attempts. Please try again later.' }, { status: 429 });
+  if (!(await rateLimit(`register:${ip}`, 5, 60_000)).allowed) return NextResponse.json({ error: 'Too many registration attempts. Please try again later.' }, { status: 429 });
   try {
     const parsed = registerSchema.safeParse(await request.json());
     if (!parsed.success) return NextResponse.json({ error: 'Please check your name, email and password requirements.' }, { status: 400 });
