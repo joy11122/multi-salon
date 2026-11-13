@@ -36,7 +36,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
-  if (!rateLimit(`booking:${ip}`, 6, 60_000).allowed) return NextResponse.json({ error: 'Too many booking attempts. Please wait a moment.' }, { status: 429 });
+  if (!(await rateLimit(`booking:${ip}`, 6, 60_000)).allowed) return NextResponse.json({ error: 'Too many booking attempts. Please wait a moment.' }, { status: 429 });
   let session: ClientSession | undefined;
   try {
     const parsed = bookingSchema.safeParse(await request.json());
