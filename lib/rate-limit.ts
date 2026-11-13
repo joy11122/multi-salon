@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 type LimitResult = { allowed: boolean; remaining: number; resetAt: number };
 type Entry = { count: number; resetAt: number };
 const buckets = new Map<string, Entry>();
