@@ -5,6 +5,7 @@ import { SALON_ID, addMinutes, toDhakaDateTime, getDhakaDate } from '@/lib/utils
 import { rateLimit } from '@/lib/rate-limit';
 import { findActiveSalonBySlug } from '@/lib/tenancy';
 import { isStaffScheduled } from '@/lib/shifts';
+import { captureOperationalError } from '@/lib/monitoring';
 
 export async function GET(request: Request) {
   const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
@@ -55,7 +56,7 @@ export async function GET(request: Request) {
     for (const slot of slots) unique.set(`${slot.time}-${staffId === 'any' ? 'any' : slot.staffId}`, slot);
     return NextResponse.json({ slots: [...unique.values()] });
   } catch (error) {
-    console.error('availability_failed', error);
+    await captureOperationalError({ error, route: '/api/availability', method: 'GET' });
     return NextResponse.json({ error: 'Could not load available times.' }, { status: 500 });
   }
 }
