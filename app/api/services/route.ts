@@ -1,10 +1,13 @@
 import { NextResponse } from 'next/server';
 import { getDb } from '@/lib/db/client';
+import { rateLimit } from '@/lib/rate-limit';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-export async function GET() {
+export async function GET(request: Request) {
+  const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
+  if (!(await rateLimit(`public-services:${ip}`, 60, 60_000)).allowed) return NextResponse.json({ error: 'Too many requests. Please try again shortly.' }, { status: 429 });
   try {
     const db = await getDb();
     const salons = await db.collection('salons')
