@@ -108,7 +108,7 @@ export async function POST(request: Request) {
             email: bookingEmail, serviceId: orderedServices[0]._id, serviceIds: orderedServices.map((service) => service._id),
             serviceName, serviceNames, staffId: barber._id, staffName: barber.name, staffEmail: barber.email || '',
             price: totalPrice, durationMinutes: totalDuration, startAt, endAt,
-            notes: input.notes, status: 'PENDING', paymentStatus: 'UNPAID', source: 'WEBSITE', createdAt: new Date(), updatedAt: new Date(),
+            notes: input.notes, notificationConsent: input.notificationConsent, status: 'PENDING', paymentStatus: 'UNPAID', source: 'WEBSITE', createdAt: new Date(), updatedAt: new Date(),
           };
           const result = await db.collection('appointments').insertOne(appointment, { session });
           created = { ...appointment, _id: result.insertedId };
@@ -126,7 +126,7 @@ export async function POST(request: Request) {
       const salonProfile = salonId === SALON_ID
         ? await db.collection('settings').findOne({ _id: 'salon' as never }, { projection: { name: 1 } })
         : await db.collection('salons').findOne({ salonId }, { projection: { name: 1 } });
-      await sendBookingNotifications({ salonId, bookingRef, customerName: String(created.customerName), phone: String(created.phone), email: String(created.email || ''), serviceName, staffName: String(created.staffName), startAt, price: totalPrice, salonName: String(salonProfile?.name || 'Salon') });
+      await sendBookingNotifications({ salonId, bookingRef, customerName: String(created.customerName), phone: String(created.phone), email: String(created.email || ''), serviceName, staffName: String(created.staffName), startAt, price: totalPrice, salonName: String(salonProfile?.name || 'Salon'), notificationConsent: input.notificationConsent });
     } catch (notificationError) {
       await captureOperationalError({ error: notificationError, route: '/api/booking', method: 'POST', salonId, severity: 'warning', metadata: { bookingRef, stage: 'post-booking-notification' } });
     }
