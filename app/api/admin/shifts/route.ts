@@ -5,6 +5,8 @@ import { auth } from "@/lib/auth";
 import { getDb } from "@/lib/db/client";
 import { findActiveSalonBySlug, requireSalonMembership } from "@/lib/tenancy";
 import { captureOperationalError } from "@/lib/monitoring";
+import { addMinutes, getDhakaDate, getDhakaTime, toDhakaDateTime } from "@/lib/utils";
+import { bookingConflictsWithShift } from "@/lib/shifts";
 
 const time = z.string().regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/);
 const shiftSchema = z.object({ kind: z.literal("shift"), staffId: z.string().regex(/^[a-f\d]{24}$/i), dayOfWeek: z.number().int().min(0).max(6), startTime: time, endTime: time, breaks: z.array(z.object({ startTime: time, endTime: time })).max(5).default([]), active: z.boolean().default(true) }).strict();
@@ -47,8 +49,31 @@ export async function POST(request: Request) {
     if (!staff) return NextResponse.json({ error: "Active staff member not found in this salon." }, { status: 404 });
     const now = new Date();
     if (data.kind === "shift") {
+      const upcoming = await db.collection("appointments").find({
+        salonId: s.salonId, staffId, status: { $nin: ["CANCELLED", "REJECTED"] }, startAt: { $gte: now },
+      }).project({ startAt: 1, endAt: 1 }).toArray();
+      const conflicts = upcoming.filter((appointment) => appointment.startAt instanceof Date && appointment.endAt instanceof Date
+        && bookingConflictsWithShift({ startAt: appointment.startAt, endAt: appointment.endAt }, data));
+      if (conflicts.length) return NextResponse.json({
+        error: `This shift change conflicts with ${conflicts.length} upcoming booking(s). Reschedule or cancel them first.`,
+        conflictCount: conflicts.length,
+      }, { status: 409 });
       await db.collection("staffShifts").updateOne({ salonId: s.salonId, staffId, dayOfWeek: data.dayOfWeek }, { $set: { ...data, salonId: s.salonId, staffId, updatedAt: now }, $setOnInsert: { createdAt: now } }, { upsert: true });
     } else {
+      const dayStart = toDhakaDateTime(data.date, "00:00");
+      const dayEnd = addMinutes(dayStart, 24 * 60);
+      const appointments = await db.collection("appointments").find({
+        salonId: s.salonId, staffId, status: { $nin: ["CANCELLED", "REJECTED"] },
+        startAt: { $lt: dayEnd }, endAt: { $gt: dayStart },
+      }).project({ startAt: 1, endAt: 1 }).toArray();
+      const leaveStart = data.type === "PARTIAL" && data.startTime ? toDhakaDateTime(data.date, data.startTime) : dayStart;
+      const leaveEnd = data.type === "PARTIAL" && data.endTime ? toDhakaDateTime(data.date, data.endTime) : dayEnd;
+      const conflicts = appointments.filter((appointment) => appointment.startAt instanceof Date && appointment.endAt instanceof Date
+        && appointment.startAt < leaveEnd && appointment.endAt > leaveStart);
+      if (conflicts.length) return NextResponse.json({
+        error: `This leave overlaps with ${conflicts.length} existing booking(s). Reschedule or cancel them first.`,
+        conflictCount: conflicts.length,
+      }, { status: 409 });
       const leave = { date: data.date, type: data.type, startTime: data.startTime, endTime: data.endTime, reason: data.reason };
       await db.collection("staffLeave").insertOne({ ...leave, salonId: s.salonId, staffId, status: "ACTIVE", createdAt: now, updatedAt: now });
     }
