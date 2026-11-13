@@ -10,6 +10,7 @@ export const bookingSchema = z.object({
   phone: z.string().trim().transform((value) => value.replace(/[\s-]/g, '')).pipe(z.string().regex(/^(?:\+?8801|01)[3-9]\d{8}$/, 'Enter a valid Bangladesh mobile number')),
   email: z.string().email().max(160).optional().or(z.literal('')),
   notes: z.string().trim().max(500).optional().default(''),
+  notificationConsent: z.boolean().optional().default(false),
 }).strict();
 
 export const registerSchema = z.object({
