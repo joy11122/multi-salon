@@ -61,6 +61,7 @@ export function ensureIndexes(): Promise<void> {
         db.collection('staffLeave').createIndex({ salonId: 1, staffId: 1, date: 1 }),
         db.collection('notificationDeliveries').createIndex({ salonId: 1, bookingRef: 1, createdAt: -1 }),
         db.collection('refunds').createIndex({ salonId: 1, paymentId: 1, createdAt: -1 }),
+        db.collection('refunds').createIndex({ salonId: 1, paymentId: 1 }, { unique: true, partialFilterExpression: { activeLock: true } }),
         db.collection('monitoringEvents').createIndex({ createdAt: -1, severity: 1 }),
       ]);
     })().catch((error) => {
