@@ -8,6 +8,7 @@ import { SALON_ID, addMinutes, bookingReference, toDhakaDateTime, getDhakaDate }
 import { rateLimit } from '@/lib/rate-limit';
 import { findActiveSalonBySlug } from '@/lib/tenancy';
 import { isStaffScheduled } from '@/lib/shifts';
+import { buildSlotLockKeys } from '@/lib/booking-slots';
 import { sendBookingNotifications } from '@/lib/notifications';
 import { captureOperationalError } from '@/lib/monitoring';
 
@@ -100,8 +101,7 @@ export async function POST(request: Request) {
             { $set: { name: input.customerName, email: bookingEmail, updatedAt: new Date() }, $setOnInsert: { salonId, phone, createdAt: new Date() } },
             { upsert: true, returnDocument: 'after', session },
           );
-          const barberSlots: string[] = [];
-          for (let minute = Math.floor(startAt.getTime() / 900000) * 900000; minute < endAt.getTime(); minute += 900000) barberSlots.push(new Date(minute).toISOString());
+          const barberSlots = buildSlotLockKeys(startAt, endAt);
           await db.collection('slotLocks').insertMany(barberSlots.map((slotKey) => ({ salonId, staffId: barber._id, slotKey, appointmentRef: bookingRef, expiresAt: addMinutes(endAt, 24 * 60), createdAt: new Date() })), { session, ordered: true });
           const appointment = {
             salonId, bookingRef, customerId: customer?._id, customerName: input.customerName, phone,
