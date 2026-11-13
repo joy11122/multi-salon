@@ -89,10 +89,12 @@ Email/password registration uses bcrypt hashing. Google OAuth is enabled only wh
 ## Integrations and launch configuration
 
 - Contact form delivery requires `RESEND_API_KEY`, `CONTACT_TO_EMAIL` and a verified `RESEND_FROM_EMAIL`.
-- Online payment collection is intentionally not enabled. Admin can record offline payments (cash/card/mobile banking/bank transfer).
+- Online payment collection is intentionally not enabled. Admin can record offline payments (cash/card/mobile banking/bank transfer); payment gateway sandbox tests cannot run until a provider integration is implemented and sandbox credentials are supplied.
 - Cloudinary variables are not required by the current implementation; gallery images are illustrative remote images.
 - Contact details, staff profiles, final prices, opening hours and salon photography must be confirmed before launch.
 - `NEXT_PUBLIC_APP_URL` must be set to the real production domain; sitemap, robots and Open Graph metadata use it.
+- Production rate limiting requires both `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` in Vercel Preview and Production. The limiter intentionally fails closed when these are missing or unavailable, so public booking, availability and discovery endpoints will return HTTP 429 until Redis is configured.
+- Booking email notices require Resend credentials. SMS and WhatsApp notices require Twilio credentials and are sent only when the customer has opted in to SMS/WhatsApp notifications.
 
 ## Deployment (Vercel)
 
@@ -108,8 +110,10 @@ Email/password registration uses bcrypt hashing. Google OAuth is enabled only wh
 
 ## Operational/security notes
 
-- The included in-memory rate limiter is a single-process fallback. For horizontally scaled production deployments, replace it with a shared Redis/Vercel KV limiter.
+- Shared Upstash Redis rate limiting is used in production; local in-memory limiting is only for development and tests.
+- Weekly staff shifts, overnight shifts, breaks and leave are supported. Schedule changes that would conflict with existing appointments are rejected with HTTP 409.
+- Booking and cancellation email notices use Resend when configured. SMS/WhatsApp use Twilio only with explicit customer notification consent.
+- Vitest unit tests and GitHub CI cover TypeScript, unit tests, lint, database script syntax and production build. Browser E2E, live MongoDB transaction/concurrency tests and real mobile-device testing still need to be run in a configured staging environment.
 - Audit logs are written for admin/staff record updates. Database backups, monitoring and alerting should be configured in MongoDB Atlas/Vercel.
-- No real payment processor, SMS/WhatsApp delivery, email booking confirmation, staff shift calendar, image upload, or automated refund integration is enabled yet.
 - The demo service prices and opening hours are not verified. Do not advertise them until the owner approves them.
 - Do not commit `.env.local` or any credentials.
