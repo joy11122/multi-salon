@@ -57,6 +57,11 @@ export function ensureIndexes(): Promise<void> {
         db.collection('payments').createIndex({ salonId: 1, appointmentId: 1 }, { sparse: true }),
         db.collection('auditLogs').createIndex({ salonId: 1, createdAt: -1 }),
         db.collection('notifications').createIndex({ salonId: 1, createdAt: -1 }),
+        db.collection('staffShifts').createIndex({ salonId: 1, staffId: 1, dayOfWeek: 1 }, { unique: true }),
+        db.collection('staffLeave').createIndex({ salonId: 1, staffId: 1, date: 1 }),
+        db.collection('notificationDeliveries').createIndex({ salonId: 1, bookingRef: 1, createdAt: -1 }),
+        db.collection('refunds').createIndex({ salonId: 1, paymentId: 1, createdAt: -1 }),
+        db.collection('monitoringEvents').createIndex({ createdAt: -1, severity: 1 }),
       ]);
     })().catch((error) => {
       indexesPromise = undefined;
