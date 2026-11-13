@@ -1,6 +1,20 @@
 import { getDb } from './client';
 
 let indexesPromise: Promise<void> | undefined;
+let salonLocationIndexPromise: Promise<void> | undefined;
+
+export function ensureSalonLocationIndex(): Promise<void> {
+  if (!salonLocationIndexPromise) {
+    salonLocationIndexPromise = getDb().then((db) => db.collection('salons').createIndex(
+      { location: '2dsphere' },
+      { name: 'salon_location_2dsphere', partialFilterExpression: { location: { $type: 'object' } } },
+    )).then(() => undefined).catch((error) => {
+      salonLocationIndexPromise = undefined;
+      throw error;
+    });
+  }
+  return salonLocationIndexPromise;
+}
 
 export function ensureIndexes(): Promise<void> {
   if (!indexesPromise) {
@@ -8,8 +22,6 @@ export function ensureIndexes(): Promise<void> {
       const db = await getDb();
       const customers = db.collection('customers');
 
-      // The legacy single-salon index prevented the same customer visiting
-      // multiple salons. Remove it before creating the tenant-scoped index.
       try {
         await customers.dropIndex('phone_1');
       } catch (error) {
@@ -17,9 +29,6 @@ export function ensureIndexes(): Promise<void> {
         if (mongoError.code !== 27 && mongoError.code !== 26) throw error;
       }
 
-      // Replace the legacy staff email index before creating the partial
-      // tenant-scoped index. Older deployments created the same index name
-      // without a partialFilterExpression, which MongoDB rejects as a spec conflict.
       const staff = db.collection('staff');
       try {
         const existingIndexes = await staff.listIndexes().toArray();
@@ -29,17 +38,14 @@ export function ensureIndexes(): Promise<void> {
         }
       } catch (error) {
         const mongoError = error as { code?: number };
-        // Another serverless instance may have removed the same legacy index.
         if (mongoError.code !== 27 && mongoError.code !== 26) throw error;
       }
 
       await Promise.all([
         db.collection('users').createIndex({ email: 1 }, { unique: true, sparse: true }),
         db.collection('salons').createIndex({ slug: 1 }, { unique: true }),
-        db.collection('salonMemberships').createIndex(
-          { salonId: 1, userId: 1 },
-          { unique: true, partialFilterExpression: { userId: { $type: 'string' } } },
-        ),
+        db.collection('salons').createIndex({ location: '2dsphere' }, { name: 'salon_location_2dsphere' }),
+        db.collection('salonMemberships').createIndex({ salonId: 1, userId: 1 }, { unique: true, partialFilterExpression: { userId: { $type: 'string' } } }),
         db.collection('salonMemberships').createIndex({ salonId: 1, email: 1 }, { unique: true }),
         db.collection('salonMemberships').createIndex({ userId: 1, status: 1 }),
         db.collection('salonSettings').createIndex({ salonId: 1 }, { unique: true }),
