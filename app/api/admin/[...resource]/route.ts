@@ -70,8 +70,8 @@ export async function POST(request: Request, context: { params: { resource: stri
   if (!resources.has(resource) || resource === 'appointments' || resource === 'customers' || resource === 'notifications' || resource === 'settings') return NextResponse.json({ error: 'This resource cannot be created here.' }, { status: 404 });
   try {
     const input = await request.json() as Record<string, unknown>;
-    const allowed = resource === 'services' ? ['name','description','category','price','durationMinutes','active','sortOrder']
-      : resource === 'staff' ? ['name','email','phone','title','bio','specialties','active','commissionRate']
+    const allowed = resource === 'services' ? ['name','description','category','price','durationMinutes','imageUrl','active','sortOrder']
+      : resource === 'staff' ? ['name','email','phone','title','bio','specialties','imageUrl','active','commissionRate']
       : resource === 'payments' ? ['appointmentId','amount','method','status','reference']
       : resource === 'reviews' ? ['customerName','rating','comment','published']
       : ['title','description','discountType','discountValue','startAt','endAt','active','code'];
