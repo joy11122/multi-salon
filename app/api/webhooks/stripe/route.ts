@@ -9,7 +9,7 @@ export async function POST(request: Request) {
   const raw = await request.text(), header = request.headers.get("stripe-signature") || "";
   const parts = header.split(",").map(x => x.split("="));
   const timestamp = parts.find(x => x[0] === "t")?.[1], signatures = parts.filter(x => x[0] === "v1").map(x => x[1]);
-  if (!timestamp || !signatures.length || Math.abs(Date.now() / 1000 - Number(timestamp)) > 300) return NextResponse.json({ error: "Invalid webhook signature." }, { status: 400 });
+  if (!timestamp || !Number.isFinite(Number(timestamp)) || !signatures.length || Math.abs(Date.now() / 1000 - Number(timestamp)) > 300) return NextResponse.json({ error: "Invalid webhook signature." }, { status: 400 });
   const expected = createHmac("sha256", secret).update(timestamp + "." + raw).digest("hex");
   const valid = signatures.some(sig => { try { const a = Buffer.from(sig, "hex"), b = Buffer.from(expected, "hex"); return a.length === b.length && timingSafeEqual(a, b); } catch { return false; } });
   if (!valid) return NextResponse.json({ error: "Invalid webhook signature." }, { status: 400 });
