@@ -72,7 +72,7 @@ export async function POST(request: Request, context: { params: { resource: stri
     const input = await request.json() as Record<string, unknown>;
     const allowed = resource === 'services' ? ['name','description','category','price','durationMinutes','imageUrl','active','sortOrder']
       : resource === 'staff' ? ['name','email','phone','title','bio','specialties','imageUrl','active','commissionRate']
-      : resource === 'payments' ? ['appointmentId','amount','method','status','reference']
+      : resource === 'payments' ? ['appointmentId','amount','method','status','reference','provider','bankTranId']
       : resource === 'reviews' ? ['customerName','rating','comment','published']
       : ['title','description','discountType','discountValue','startAt','endAt','active','code'];
     const doc: Record<string, unknown> = { salonId: scope.salonId, createdAt: new Date(), updatedAt: new Date() };
@@ -141,7 +141,7 @@ export async function PATCH(request: Request, context: { params: { resource: str
       : resource === 'staff' ? ['name','email','phone','title','bio','specialties','active','commissionRate']
       : resource === 'reviews' ? ['customerName','rating','comment','published']
       : resource === 'offers' ? ['title','description','code','active','discountType','discountValue','endAt']
-      : resource === 'payments' ? ['status','method','reference']
+      : resource === 'payments' ? ['status','method','reference','provider','bankTranId']
       : resource === 'notifications' ? ['read'] : [];
     if (!allowed.length || (scope.role === 'STAFF' && resource !== 'appointments')) return NextResponse.json({ error: 'This update is not allowed.' }, { status: 403 });
     const update: Record<string, unknown> = { updatedAt: new Date() };
