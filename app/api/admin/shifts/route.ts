@@ -41,8 +41,27 @@ export async function POST(request: Request) {
     const parsed = isShift ? shiftSchema.safeParse(body) : leaveSchema.safeParse(body);
     if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0]?.message || "Invalid schedule." }, { status: 400 });
     const data = parsed.data as z.infer<typeof shiftSchema> | z.infer<typeof leaveSchema>;
-    if (data.kind === "shift" && data.startTime >= data.endTime) return NextResponse.json({ error: "Shift end must be after shift start." }, { status: 400 });
-    if (data.kind === "shift" && data.breaks.some(b => b.startTime >= b.endTime || b.startTime < data.startTime || b.endTime > data.endTime)) return NextResponse.json({ error: "Breaks must be within the shift." }, { status: 400 });
+    if (data.kind === "shift") {
+      const minute = (value: string) => { const [hour, min] = value.split(":").map(Number); return hour * 60 + min; };
+      const shiftStart = minute(data.startTime);
+      const shiftEndClock = minute(data.endTime);
+      if (shiftStart === shiftEndClock) return NextResponse.json({ error: "Shift start and end cannot be the same." }, { status: 400 });
+      const shiftEnd = shiftEndClock + (shiftEndClock < shiftStart ? 1440 : 0);
+      const breaks = data.breaks.map((pause) => {
+        let start = minute(pause.startTime);
+        let end = minute(pause.endTime);
+        if (start < shiftStart) start += 1440;
+        if (end < shiftStart) end += 1440;
+        if (end <= start) end += 1440;
+        return { start, end };
+      }).sort((a, b) => a.start - b.start);
+      if (breaks.some((pause) => pause.start < shiftStart || pause.end > shiftEnd || pause.start >= pause.end)) {
+        return NextResponse.json({ error: "Breaks must be within the shift, including overnight hours." }, { status: 400 });
+      }
+      if (breaks.some((pause, index) => index > 0 && pause.start < breaks[index - 1].end)) {
+        return NextResponse.json({ error: "Breaks cannot overlap." }, { status: 400 });
+      }
+    }
     if (data.kind === "leave" && data.type === "PARTIAL" && (!data.startTime || !data.endTime || data.startTime >= data.endTime)) return NextResponse.json({ error: "Partial leave requires a valid start and end time." }, { status: 400 });
     const db = await getDb(), staffId = new ObjectId(data.staffId);
     const staff = await db.collection("staff").findOne({ _id: staffId, salonId: s.salonId, active: true });
