@@ -53,21 +53,23 @@ export async function refreshRefundStatuses(salonId?: string) {
   const filter: Record<string, unknown> = { provider: "SSLCOMMERZ", status: "PENDING", providerRefundId: { $type: "string" } };
   if (salonId) filter.salonId = salonId;
   const pending = await db.collection("refunds").find(filter).limit(10).toArray();
+  if (!pending.length) return { checked: 0, updated: 0 };
   const credentials = sslCommerzCredentials();
-  let updated = 0;
-  for (const item of pending) {
+  const outcomes = await Promise.all(pending.map(async (item) => {
     try {
       const params = new URLSearchParams({ refund_ref_id: String(item.providerRefundId), store_id: credentials.storeId, store_passwd: credentials.storePassword, format: "json" });
       const response = await fetch(sslCommerzBase() + "/validator/api/merchantTransIDvalidationAPI.php?" + params.toString(), { method: "GET", cache: "no-store", signal: AbortSignal.timeout(4000) });
-      if (!response.ok) continue;
+      if (!response.ok) return false;
       const result = await response.json() as { status?: string; errorReason?: string };
       const status = result.status === "refunded" ? "SUCCEEDED" : result.status === "cancelled" ? "FAILED" : "PENDING";
-      if (status !== "PENDING") {
-        await db.collection("refunds").updateOne({ _id: item._id, salonId: item.salonId, status: "PENDING" }, { $set: { status, providerStatus: result.status, updatedAt: new Date(), statusCheckedAt: new Date() } });
-        if (status === "SUCCEEDED") await db.collection("payments").updateOne({ _id: item.paymentId, salonId: item.salonId }, { $set: { refundStatus: "REFUNDED", updatedAt: new Date() } });
-        updated += 1;
-      }
-    } catch (error) { console.error("sslcommerz_refund_status_check_failed", { refundId: String(item._id), error }); }
-  }
-  return { checked: pending.length, updated };
+      if (status === "PENDING") return false;
+      await db.collection("refunds").updateOne({ _id: item._id, salonId: item.salonId, status: "PENDING" }, { $set: { status, providerStatus: result.status, updatedAt: new Date(), statusCheckedAt: new Date() } });
+      if (status === "SUCCEEDED") await db.collection("payments").updateOne({ _id: item.paymentId, salonId: item.salonId }, { $set: { refundStatus: "REFUNDED", updatedAt: new Date() } });
+      return true;
+    } catch (error) {
+      console.error("sslcommerz_refund_status_check_failed", { refundId: String(item._id), error });
+      return false;
+    }
+  }));
+  return { checked: pending.length, updated: outcomes.filter(Boolean).length };
 }
