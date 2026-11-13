@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { bookingSchema } from '../lib/validations/booking';
 import { addMinutes, bookingReference, getDhakaDate, toDhakaDateTime } from '../lib/utils';
+import { bookingConflictsWithShift } from '../lib/shifts';
 
 const validBooking = {
   serviceIds: ['65a000000000000000000001'],
@@ -45,5 +46,29 @@ describe('Dhaka date helpers', () => {
   });
   it('formats date in Dhaka timezone', () => {
     expect(getDhakaDate(new Date('2027-01-10T18:30:00Z'))).toBe('2027-01-11');
+  });
+});
+
+describe('staff shift booking conflicts', () => {
+  const booking = {
+    startAt: new Date('2027-01-10T04:00:00.000Z'),
+    endAt: new Date('2027-01-10T04:45:00.000Z'),
+  };
+  const shift = { dayOfWeek: 0, startTime: '09:00', endTime: '18:00', breaks: [{ startTime: '13:00', endTime: '14:00' }] };
+
+  it('allows a booking inside scheduled hours', () => {
+    expect(bookingConflictsWithShift(booking, shift)).toBe(false);
+  });
+  it('detects a booking outside scheduled hours', () => {
+    expect(bookingConflictsWithShift({ ...booking, startAt: new Date('2027-01-10T02:00:00.000Z'), endAt: new Date('2027-01-10T02:45:00.000Z') }, shift)).toBe(true);
+  });
+  it('detects a booking overlapping a staff break', () => {
+    expect(bookingConflictsWithShift({ ...booking, startAt: new Date('2027-01-10T07:30:00.000Z'), endAt: new Date('2027-01-10T08:15:00.000Z') }, shift)).toBe(true);
+  });
+  it('ignores appointments on another weekday', () => {
+    expect(bookingConflictsWithShift({ ...booking, startAt: new Date('2027-01-11T04:00:00.000Z'), endAt: new Date('2027-01-11T04:45:00.000Z') }, shift)).toBe(false);
+  });
+  it('detects appointments when a weekly shift is disabled', () => {
+    expect(bookingConflictsWithShift(booking, { ...shift, active: false })).toBe(true);
   });
 });
