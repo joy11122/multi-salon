@@ -3,16 +3,50 @@ import { getDb } from './client';
 let indexesPromise: Promise<void> | undefined;
 let salonLocationIndexPromise: Promise<void> | undefined;
 
+const SALON_LOCATION_INDEX_NAME = 'salon_location_2dsphere';
+const SALON_LOCATION_INDEX_OPTIONS = {
+  name: SALON_LOCATION_INDEX_NAME,
+  partialFilterExpression: { location: { $type: 'object' } },
+};
+
 export function ensureSalonLocationIndex(): Promise<void> {
   if (!salonLocationIndexPromise) {
-    salonLocationIndexPromise = getDb().then((db) => db.collection('salons').createIndex(
-      { location: '2dsphere' },
-      { name: 'salon_location_2dsphere', partialFilterExpression: { location: { $type: 'object' } } },
-    )).then(() => undefined).catch((error) => {
+    salonLocationIndexPromise = (async () => {
+      const salons = (await getDb()).collection('salons');
+      let existingIndexes: Array<{ name?: string; key?: Record<string, unknown>; partialFilterExpression?: Record<string, unknown> }> = [];
+
+      try {
+        existingIndexes = await salons.listIndexes().toArray();
+      } catch (error) {
+        const mongoError = error as { code?: number };
+        if (mongoError.code !== 26) throw error;
+      }
+
+      const existingLocationIndex = existingIndexes.find(
+        (index) => index.name === SALON_LOCATION_INDEX_NAME,
+      );
+
+      if (existingLocationIndex) {
+        const hasExpectedKey = existingLocationIndex.key?.location === '2dsphere'
+          && Object.keys(existingLocationIndex.key).length === 1;
+        const hasExpectedPartialFilter = JSON.stringify(existingLocationIndex.partialFilterExpression)
+          === JSON.stringify(SALON_LOCATION_INDEX_OPTIONS.partialFilterExpression);
+
+        if (!hasExpectedKey || !hasExpectedPartialFilter) {
+          await salons.dropIndex(SALON_LOCATION_INDEX_NAME);
+        }
+      }
+
+      await salons.createIndex(
+        { location: '2dsphere' },
+        SALON_LOCATION_INDEX_OPTIONS,
+      );
+    })().catch((error) => {
       salonLocationIndexPromise = undefined;
       throw error;
     });
   }
+
   return salonLocationIndexPromise;
 }
 
@@ -41,10 +75,11 @@ export function ensureIndexes(): Promise<void> {
         if (mongoError.code !== 27 && mongoError.code !== 26) throw error;
       }
 
+      await ensureSalonLocationIndex();
+
       await Promise.all([
         db.collection('users').createIndex({ email: 1 }, { unique: true, sparse: true }),
         db.collection('salons').createIndex({ slug: 1 }, { unique: true }),
-        db.collection('salons').createIndex({ location: '2dsphere' }, { name: 'salon_location_2dsphere' }),
         db.collection('salonMemberships').createIndex({ salonId: 1, userId: 1 }, { unique: true, partialFilterExpression: { userId: { $type: 'string' } } }),
         db.collection('salonMemberships').createIndex({ salonId: 1, email: 1 }, { unique: true }),
         db.collection('salonMemberships').createIndex({ userId: 1, status: 1 }),
@@ -75,5 +110,6 @@ export function ensureIndexes(): Promise<void> {
       throw error;
     });
   }
+
   return indexesPromise;
 }
