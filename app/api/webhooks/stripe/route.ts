@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createHmac, timingSafeEqual } from "node:crypto";
+import { ObjectId } from "mongodb";
 import { getDb } from "@/lib/db/client";
 export const dynamic = "force-dynamic";
 export async function POST(request: Request) {
@@ -20,7 +21,7 @@ export async function POST(request: Request) {
       if (refund?.id) {
         const db = await getDb();
         const status = refund.status === "succeeded" ? "SUCCEEDED" : refund.status === "failed" || refund.status === "canceled" ? "FAILED" : "PENDING";
-        const filter = refundId && /^[a-f\d]{24}$/i.test(refundId) ? { _id: new (await import("mongodb")).ObjectId(refundId) } : { providerRefundId: refund.id };
+        const filter = refundId && /^[a-f\d]{24}$/i.test(refundId) ? { _id: new ObjectId(refundId) } : { providerRefundId: refund.id };
         await db.collection("refunds").updateOne(filter, { $set: { status, providerRefundId: refund.id, updatedAt: new Date(), lastWebhookEventId: event.id } });
       }
     }
