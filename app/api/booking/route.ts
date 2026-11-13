@@ -9,6 +9,7 @@ import { rateLimit } from '@/lib/rate-limit';
 import { findActiveSalonBySlug } from '@/lib/tenancy';
 import { isStaffScheduled } from '@/lib/shifts';
 import { sendBookingNotifications } from '@/lib/notifications';
+import { captureOperationalError } from '@/lib/monitoring';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -121,13 +122,17 @@ export async function POST(request: Request) {
       }
     }
     if (!created) return NextResponse.json({ error: 'That time was just booked or the selected staff member is not scheduled. Please select another slot.' }, { status: 409 });
-    const salonProfile = salonId === SALON_ID
-      ? await db.collection('settings').findOne({ _id: 'salon' as never }, { projection: { name: 1 } })
-      : await db.collection('salons').findOne({ salonId }, { projection: { name: 1 } });
-    await sendBookingNotifications({ salonId, bookingRef, customerName: String(created.customerName), phone: String(created.phone), email: String(created.email || ''), serviceName, staffName: String(created.staffName), startAt, price: totalPrice, salonName: String(salonProfile?.name || 'Salon') });
+    try {
+      const salonProfile = salonId === SALON_ID
+        ? await db.collection('settings').findOne({ _id: 'salon' as never }, { projection: { name: 1 } })
+        : await db.collection('salons').findOne({ salonId }, { projection: { name: 1 } });
+      await sendBookingNotifications({ salonId, bookingRef, customerName: String(created.customerName), phone: String(created.phone), email: String(created.email || ''), serviceName, staffName: String(created.staffName), startAt, price: totalPrice, salonName: String(salonProfile?.name || 'Salon') });
+    } catch (notificationError) {
+      await captureOperationalError({ error: notificationError, route: '/api/booking', method: 'POST', salonId, severity: 'warning', metadata: { bookingRef, stage: 'post-booking-notification' } });
+    }
     return NextResponse.json({ success: true, bookingRef, status: 'PENDING', message: 'Your appointment request has been received.' }, { status: 201 });
   } catch (error) {
-    console.error('booking_create_failed', error);
+    await captureOperationalError({ error, route: '/api/booking', method: 'POST' });
     return NextResponse.json({ error: 'We could not complete your booking. Please try again.' }, { status: 500 });
   } finally { await session?.endSession(); }
 }
