@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getClient, getDb } from '@/lib/db/client';
 import type { ClientSession } from 'mongodb';
 import { auth } from '@/lib/auth';
+import { sendBookingCancellationNotice } from '@/lib/notifications';
 
 export async function POST(_request: Request, context: { params: { bookingRef: string } }) {
   const sessionUser = await auth();
@@ -21,12 +22,13 @@ export async function POST(_request: Request, context: { params: { bookingRef: s
     const db = await getDb();
     mongoSession = client.startSession();
     let outcome: 'CANCELLED' | 'NOT_FOUND' | 'NOT_ALLOWED' = 'NOT_FOUND';
+    let cancellationNotice: { salonId: string; bookingRef: string; customerName: string; phone: string; email: string; serviceName: string; notificationConsent?: boolean } | null = null;
 
     await mongoSession.withTransaction(async () => {
       const now = new Date();
       const owned = await db.collection('appointments').findOne(
         { bookingRef, email },
-        { session: mongoSession, projection: { _id: 1, salonId: 1, status: 1, startAt: 1 } },
+        { session: mongoSession, projection: { _id: 1, salonId: 1, status: 1, startAt: 1, customerName: 1, phone: 1, email: 1, serviceName: 1, notificationConsent: 1 } },
       );
 
       if (!owned) {
@@ -63,11 +65,13 @@ export async function POST(_request: Request, context: { params: { bookingRef: s
         changes: { status: 'CANCELLED' },
         createdAt: now,
       }, { session: mongoSession });
+      cancellationNotice = { salonId: String(owned.salonId), bookingRef, customerName: String(owned.customerName || 'Customer'), phone: String(owned.phone || ''), email: String(owned.email || email), serviceName: String(owned.serviceName || 'appointment'), notificationConsent: owned.notificationConsent === true };
       outcome = 'CANCELLED';
     }, { readConcern: { level: 'snapshot' }, writeConcern: { w: 'majority' } });
 
     if (outcome === 'NOT_FOUND') return NextResponse.json({ error: 'Booking not found in your account.' }, { status: 404 });
     if (outcome === 'NOT_ALLOWED') return NextResponse.json({ error: 'This booking can no longer be cancelled. Only future pending or confirmed appointments can be cancelled.' }, { status: 409 });
+    if (cancellationNotice) await sendBookingCancellationNotice(cancellationNotice);
     return NextResponse.json({ success: true, message: 'Your appointment has been cancelled.' });
   } catch (error) {
     console.error('customer_booking_cancel_failed', error);

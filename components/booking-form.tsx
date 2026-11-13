@@ -55,13 +55,17 @@ export function BookingForm({ defaultName = '', defaultEmail = '', salonSlug, sa
   }, [selectedSalonSlug]);
 
   useEffect(() => {
-    if (!selectedServiceIds.length || !date) { setSlots([]); return; }
+    if (!selectedServiceIds.length || !date) { setSlots([]); setTime(''); return; }
+    const controller = new AbortController();
+    setSlots([]);
     setTime('');
+    setError('');
     const params = new URLSearchParams({ date, serviceIds: selectedServiceIds.join(','), staffId });
     if (selectedSalonSlug) params.set('salonSlug', selectedSalonSlug);
-    fetch(`/api/availability?${params.toString()}`)
-      .then(async (res) => { const data = await res.json(); if (!res.ok) throw new Error(data.error); setSlots(data.slots || []); })
-      .catch((e) => { setSlots([]); setError(e.message || 'Could not load times.'); });
+    fetch(`/api/availability?${params.toString()}`, { signal: controller.signal, cache: 'no-store' })
+      .then(async (res) => { const data = await res.json(); if (!res.ok) throw new Error(data.error); if (!controller.signal.aborted) setSlots(data.slots || []); })
+      .catch((e) => { if (controller.signal.aborted || (e instanceof DOMException && e.name === 'AbortError')) return; setSlots([]); setError(e.message || 'Could not load times.'); });
+    return () => controller.abort();
   }, [selectedServiceIds, staffId, date, selectedSalonSlug]);
 
   function toggleService(serviceId: string) {

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getDb } from '@/lib/db/client';
+import { rateLimit } from '@/lib/rate-limit';
 import { ensureSalonLocationIndex } from '@/lib/db/indexes';
 import { isValidCoordinates } from '@/lib/geo';
 
@@ -10,6 +11,8 @@ function escapeRegex(value: string) {
 }
 
 export async function GET(request: Request) {
+  const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
+  if (!(await rateLimit(`salon-discovery:${ip}`, 40, 60_000)).allowed) return NextResponse.json({ error: 'Too many discovery requests. Please try again shortly.' }, { status: 429 });
   const params = new URL(request.url).searchParams;
   const area = (params.get('area') || '').trim().slice(0, 80);
   const lat = Number(params.get('lat'));

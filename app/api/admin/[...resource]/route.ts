@@ -6,6 +6,7 @@ import { requireRole } from '@/lib/auth-guards';
 import { auth } from '@/lib/auth';
 import { findActiveSalonBySlug, requireSalonMembership, type SalonRole } from '@/lib/tenancy';
 import { SALON_ID } from '@/lib/utils';
+import { sendBookingCancellationNotice } from '@/lib/notifications';
 
 const resources = new Set(['appointments', 'services', 'staff', 'customers', 'payments', 'reviews', 'offers', 'notifications', 'settings']);
 const collectionFor = (resource: string) => resource === 'settings' ? 'settings' : resource;
@@ -222,6 +223,17 @@ export async function PATCH(request: Request, context: { params: { resource: str
         }, { readConcern: { level: 'snapshot' }, writeConcern: { w: 'majority' } });
 
         if (!changed) return NextResponse.json({ error: 'Appointment was changed by another request. Refresh and try again.' }, { status: 409 });
+        if (update.status === 'CANCELLED') {
+          await sendBookingCancellationNotice({
+            salonId: scope.salonId,
+            bookingRef: String(previousAppointment?.bookingRef || ''),
+            customerName: String(previousAppointment?.customerName || 'Customer'),
+            phone: String(previousAppointment?.phone || ''),
+            email: String(previousAppointment?.email || ''),
+            serviceName: String(previousAppointment?.serviceName || 'appointment'),
+            notificationConsent: previousAppointment?.notificationConsent === true,
+          });
+        }
         return NextResponse.json({ success: true });
       } finally {
         await mongoSession.endSession();
