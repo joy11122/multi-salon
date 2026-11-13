@@ -64,6 +64,7 @@ export async function refreshRefundStatuses(salonId?: string) {
       const status = result.status === "refunded" ? "SUCCEEDED" : result.status === "cancelled" ? "FAILED" : "PENDING";
       if (status !== "PENDING") {
         await db.collection("refunds").updateOne({ _id: item._id, salonId: item.salonId, status: "PENDING" }, { $set: { status, providerStatus: result.status, updatedAt: new Date(), statusCheckedAt: new Date() } });
+        if (status === "SUCCEEDED") await db.collection("payments").updateOne({ _id: item.paymentId, salonId: item.salonId }, { $set: { refundStatus: "REFUNDED", updatedAt: new Date() } });
         updated += 1;
       }
     } catch (error) { console.error("sslcommerz_refund_status_check_failed", { refundId: String(item._id), error }); }
