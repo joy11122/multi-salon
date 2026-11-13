@@ -137,8 +137,8 @@ export async function PATCH(request: Request, context: { params: { resource: str
     const id = String(input.id || '');
     if (!ObjectId.isValid(id)) return NextResponse.json({ error: 'Invalid record ID.' }, { status: 400 });
     const allowed = resource === 'appointments' ? ['status']
-      : resource === 'services' ? ['name','description','category','price','durationMinutes','active','sortOrder']
-      : resource === 'staff' ? ['name','email','phone','title','bio','specialties','active','commissionRate']
+      : resource === 'services' ? ['name','description','category','price','durationMinutes','imageUrl','active','sortOrder']
+      : resource === 'staff' ? ['name','email','phone','title','bio','specialties','imageUrl','active','commissionRate']
       : resource === 'reviews' ? ['customerName','rating','comment','published']
       : resource === 'offers' ? ['title','description','code','active','discountType','discountValue','endAt']
       : resource === 'payments' ? ['status','method','reference','provider','bankTranId']
