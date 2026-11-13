@@ -8,7 +8,7 @@ import { captureOperationalError } from "@/lib/monitoring";
 
 const time = z.string().regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/);
 const shiftSchema = z.object({ kind: z.literal("shift"), staffId: z.string().regex(/^[a-f\d]{24}$/i), dayOfWeek: z.number().int().min(0).max(6), startTime: time, endTime: time, breaks: z.array(z.object({ startTime: time, endTime: time })).max(5).default([]), active: z.boolean().default(true) }).strict();
-const leaveSchema = z.object({ kind: z.literal("leave"), staffId: z.string().regex(/^[a-f\d]{24}$/i), date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), type: z.enum(["FULL_DAY", "PARTIAL"]), startTime: time.optional(), endTime: time.optional(), reason: z.string().trim().max(300).optional() }).strict();
+const leaveSchema = z.object({ kind: z.literal("leave"), staffId: z.string().regex(/^[a-f\d]{24}$/i), date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine(value => { const d = new Date(value + "T00:00:00Z"); return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === value; }), type: z.enum(["FULL_DAY", "PARTIAL"]), startTime: time.optional(), endTime: time.optional(), reason: z.string().trim().max(300).optional() }).strict();
 async function scope(request: Request) {
   const slug = new URL(request.url).searchParams.get("salonSlug");
   if (!slug) return { response: NextResponse.json({ error: "Salon context is required." }, { status: 400 }) };
