@@ -12,7 +12,10 @@ async function twilio(to: string, body: string, channel: "sms" | "whatsapp") {
   if (!to || !sid || !token || !from) return { skipped: true };
   const recipient = channel === "whatsapp" && !to.startsWith("whatsapp:") ? "whatsapp:" + to : to;
   const sender = channel === "whatsapp" && !from.startsWith("whatsapp:") ? "whatsapp:" + from : from;
-  const form = new URLSearchParams({ To: recipient, From: sender, Body: body });
+  const contentSid = channel === "whatsapp" ? process.env.TWILIO_WHATSAPP_CONTENT_SID : undefined;
+  const form = new URLSearchParams({ To: recipient, From: sender });
+  if (contentSid) { form.set("ContentSid", contentSid); form.set("ContentVariables", JSON.stringify({ "1": body })); }
+  else form.set("Body", body);
   const r = await fetch("https://api.twilio.com/2010-04-01/Accounts/" + sid + "/Messages.json", { method: "POST", headers: { Authorization: "Basic " + Buffer.from(sid + ":" + token).toString("base64"), "Content-Type": "application/x-www-form-urlencoded" }, body: form, signal: AbortSignal.timeout(8000) });
   if (!r.ok) throw new Error("Twilio " + channel + " failed: " + r.status);
   return await r.json() as { sid?: string };
