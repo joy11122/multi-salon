@@ -22,7 +22,8 @@ export async function POST(request: Request) {
         const db = await getDb();
         const status = refund.status === "succeeded" ? "SUCCEEDED" : refund.status === "failed" || refund.status === "canceled" ? "FAILED" : "PENDING";
         const filter = refundId && /^[a-f\d]{24}$/i.test(refundId) ? { _id: new ObjectId(refundId) } : { providerRefundId: refund.id };
-        await db.collection("refunds").updateOne(filter, { $set: { status, providerRefundId: refund.id, updatedAt: new Date(), lastWebhookEventId: event.id } });
+        const updated = await db.collection("refunds").findOneAndUpdate(filter, { $set: { status, providerRefundId: refund.id, updatedAt: new Date(), lastWebhookEventId: event.id } }, { returnDocument: "after" });
+        if (status === "SUCCEEDED" && updated) await db.collection("payments").updateOne({ _id: updated.paymentId, salonId: updated.salonId }, { $set: { refundStatus: "REFUNDED", updatedAt: new Date() } });
       }
     }
     return NextResponse.json({ received: true });
