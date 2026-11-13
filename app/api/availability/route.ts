@@ -7,7 +7,7 @@ import { findActiveSalonBySlug } from '@/lib/tenancy';
 
 export async function GET(request: Request) {
   const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
-  if (!rateLimit(`availability:${ip}`, 40, 60_000).allowed) return NextResponse.json({ error: 'Too many availability requests. Please wait a moment.' }, { status: 429 });
+  if (!(await rateLimit(`availability:${ip}`, 40, 60_000)).allowed) return NextResponse.json({ error: 'Too many availability requests. Please wait a moment.' }, { status: 429 });
   try {
     const { searchParams } = new URL(request.url);
     const date = searchParams.get('date') || '';
