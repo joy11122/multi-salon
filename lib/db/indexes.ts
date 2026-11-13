@@ -44,7 +44,7 @@ export function ensureIndexes(): Promise<void> {
       await Promise.all([
         db.collection('users').createIndex({ email: 1 }, { unique: true, sparse: true }),
         db.collection('salons').createIndex({ slug: 1 }, { unique: true }),
-        db.collection('salons').createIndex({ location: '2dsphere' }, { name: 'salon_location_2dsphere', partialFilterExpression: { location: { $type: 'object' } } }),
+        db.collection('salons').createIndex({ location: '2dsphere' }, { name: 'salon_location_2dsphere' }),
         db.collection('salonMemberships').createIndex({ salonId: 1, userId: 1 }, { unique: true, partialFilterExpression: { userId: { $type: 'string' } } }),
         db.collection('salonMemberships').createIndex({ salonId: 1, email: 1 }, { unique: true }),
         db.collection('salonMemberships').createIndex({ userId: 1, status: 1 }),
