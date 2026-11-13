@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
-import { ObjectId } from 'mongodb';
+import { ObjectId, type ClientSession } from 'mongodb';
 import type { Session } from 'next-auth';
-import { getDb } from '@/lib/db/client';
+import { getClient, getDb } from '@/lib/db/client';
 import { requireRole } from '@/lib/auth-guards';
 import { auth } from '@/lib/auth';
 import { findActiveSalonBySlug, requireSalonMembership, type SalonRole } from '@/lib/tenancy';
@@ -182,6 +182,52 @@ export async function PATCH(request: Request, context: { params: { resource: str
     }
     if (scope.role === 'STAFF' && update.status && !['CONFIRMED','COMPLETED','NO_SHOW'].includes(String(update.status))) return NextResponse.json({ error: 'You cannot set that appointment status.' }, { status: 403 });
     const db = await getDb();
+
+    // Appointment status changes use compare-and-set inside a transaction.
+    // This prevents concurrent admin actions from overwriting one another or
+    // leaving slot locks out of sync with the appointment state.
+    if (resource === 'appointments' && update.status !== undefined) {
+      const client = await getClient();
+      const mongoSession: ClientSession = client.startSession();
+      try {
+        let changed = false;
+        await mongoSession.withTransaction(async () => {
+          const result = await db.collection('appointments').updateOne(
+            { ...filter, status: previousAppointment?.status },
+            { $set: update },
+            { session: mongoSession },
+          );
+          if (!result.matchedCount) return;
+
+          if (['CANCELLED', 'REJECTED'].includes(String(update.status))) {
+            const bookingRef = String(previousAppointment?.bookingRef || '');
+            if (bookingRef) {
+              await db.collection('slotLocks').deleteMany(
+                { salonId: scope.salonId, appointmentRef: bookingRef },
+                { session: mongoSession },
+              );
+            }
+          }
+
+          await db.collection('auditLogs').insertOne({
+            salonId: scope.salonId,
+            actorId: scope.session.user.id,
+            action: 'UPDATE',
+            resource,
+            resourceId: id,
+            changes: update,
+            createdAt: new Date(),
+          }, { session: mongoSession });
+          changed = true;
+        }, { readConcern: { level: 'snapshot' }, writeConcern: { w: 'majority' } });
+
+        if (!changed) return NextResponse.json({ error: 'Appointment was changed by another request. Refresh and try again.' }, { status: 409 });
+        return NextResponse.json({ success: true });
+      } finally {
+        await mongoSession.endSession();
+      }
+    }
+
     const previousStaff = resource === 'staff' && (update.email !== undefined || update.active !== undefined) ? await db.collection('staff').findOne(filter, { projection: { email: 1 } }) : null;
     const result = await db.collection(resource).updateOne(filter, { $set: update });
     if (!result.matchedCount) return NextResponse.json({ error: 'Record not found.' }, { status: 404 });
@@ -223,7 +269,6 @@ export async function PATCH(request: Request, context: { params: { resource: str
         );
       }
     }
-    if (resource === 'appointments' && ['CANCELLED','REJECTED'].includes(String(update.status))) await (await getDb()).collection('slotLocks').deleteMany({ salonId: scope.salonId, appointmentRef: String((await (await getDb()).collection('appointments').findOne({ _id: new ObjectId(id), salonId: scope.salonId }, { projection: { bookingRef: 1 } }))?.bookingRef || '') });
     if (resource === 'payments') { const db = await getDb(); const payment = await db.collection('payments').findOne({ _id: new ObjectId(id), salonId: scope.salonId }); if (payment?.appointmentId instanceof ObjectId) await syncAppointmentPayment(db, payment.appointmentId, scope.salonId); }
     await (await getDb()).collection('auditLogs').insertOne({ salonId: scope.salonId, actorId: scope.session.user.id, action: 'UPDATE', resource, resourceId: id, changes: update, createdAt: new Date() });
     return NextResponse.json({ success: true });
