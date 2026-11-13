@@ -13,7 +13,7 @@ export function ensureSalonLocationIndex(): Promise<void> {
   if (!salonLocationIndexPromise) {
     salonLocationIndexPromise = (async () => {
       const salons = (await getDb()).collection('salons');
-      let existingIndexes: Awaited<ReturnType<typeof salons.listIndexes>['toArray']> = [];
+      let existingIndexes: Array<{ name?: string; key?: Record<string, unknown>; partialFilterExpression?: Record<string, unknown> }> = [];
 
       try {
         existingIndexes = await salons.listIndexes().toArray();
