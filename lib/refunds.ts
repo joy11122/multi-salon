@@ -14,14 +14,14 @@ export async function createRefund(input: { salonId: string; paymentId: ObjectId
   if (payment.status !== "PAID") throw new Error("Only paid payments can be refunded.");
   const amount = input.amount === undefined ? Number(payment.amount) : input.amount;
   if (!Number.isFinite(amount) || amount <= 0 || amount > Number(payment.amount)) throw new Error("Refund amount must be positive and cannot exceed the payment.");
-  const existing = await db.collection("refunds").findOne({ salonId: input.salonId, paymentId: payment._id, status: { $in: ["PROCESSING", "PENDING", "SUCCEEDED"] } });
+  const existing = await db.collection("refunds").findOne({ salonId: input.salonId, paymentId: payment._id, $or: [{ activeLock: true }, { status: { $in: ["PROCESSING", "PENDING", "SUCCEEDED", "UNKNOWN"] } }] });
   if (existing) throw new Error("A refund is already pending or completed for this payment.");
 
   const stripeIntent = String(payment.providerPaymentIntentId || "");
   const bankTranId = String(payment.bankTranId || payment.bank_tran_id || "");
   const provider = stripeIntent ? "STRIPE" : bankTranId ? "SSLCOMMERZ" : "";
   if (!provider) throw new Error("This payment has no supported gateway transaction reference. Cash and manual wallet payments must be refunded through their original provider.");
-  const record = await db.collection("refunds").insertOne({ salonId: input.salonId, paymentId: payment._id, appointmentId: payment.appointmentId, amount, currency: "BDT", reason: (input.reason || "Customer refund request").slice(0, 500), status: "PROCESSING", provider, createdBy: input.actorId, createdAt: new Date(), updatedAt: new Date() });
+  const record = await db.collection("refunds").insertOne({ salonId: input.salonId, paymentId: payment._id, appointmentId: payment.appointmentId, amount, currency: "BDT", reason: (input.reason || "Customer refund request").slice(0, 500), status: "PROCESSING", activeLock: true, provider, createdBy: input.actorId, createdAt: new Date(), updatedAt: new Date() });
   try {
     if (provider === "STRIPE") {
       const secret = process.env.STRIPE_SECRET_KEY;
@@ -43,7 +43,8 @@ export async function createRefund(input: { salonId: string; paymentId: ObjectId
     await db.collection("refunds").updateOne({ _id: record.insertedId, salonId: input.salonId }, { $set: { providerRefundId: payload.refund_ref_id, refundTransactionId, status: "PENDING", providerStatus: payload.status, updatedAt: new Date() } });
     return { refundId: String(record.insertedId), providerRefundId: payload.refund_ref_id, status: payload.status, provider };
   } catch (error) {
-    await db.collection("refunds").updateOne({ _id: record.insertedId, salonId: input.salonId }, { $set: { status: "FAILED", error: error instanceof Error ? error.message : "Refund failed", updatedAt: new Date() } });
+    const uncertain = error instanceof TypeError || (error instanceof Error && ["AbortError", "TimeoutError"].includes(error.name));
+    await db.collection("refunds").updateOne({ _id: record.insertedId, salonId: input.salonId }, { $set: { status: uncertain ? "UNKNOWN" : "FAILED", activeLock: uncertain, error: error instanceof Error ? error.message : "Refund failed", updatedAt: new Date() } });
     throw error;
   }
 }
@@ -63,7 +64,7 @@ export async function refreshRefundStatuses(salonId?: string) {
       const result = await response.json() as { status?: string; errorReason?: string };
       const status = result.status === "refunded" ? "SUCCEEDED" : result.status === "cancelled" ? "FAILED" : "PENDING";
       if (status === "PENDING") return false;
-      await db.collection("refunds").updateOne({ _id: item._id, salonId: item.salonId, status: "PENDING" }, { $set: { status, providerStatus: result.status, updatedAt: new Date(), statusCheckedAt: new Date() } });
+      await db.collection("refunds").updateOne({ _id: item._id, salonId: item.salonId, status: "PENDING" }, { $set: { status, activeLock: status !== "FAILED", providerStatus: result.status, updatedAt: new Date(), statusCheckedAt: new Date() } });
       if (status === "SUCCEEDED") await db.collection("payments").updateOne({ _id: item.paymentId, salonId: item.salonId }, { $set: { refundStatus: "REFUNDED", updatedAt: new Date() } });
       return true;
     } catch (error) {
