@@ -45,7 +45,7 @@ Visitor GPS coordinates are sent to the nearby-search endpoint for that request 
 
 ## Database index
 
-The application creates a partial 2dsphere index named `salon_location_2dsphere` for salon documents that have a GeoJSON `location`. The public discovery endpoint ensures this index exists before running a geospatial query.
+The application creates a 2dsphere index named `salon_location_2dsphere`. MongoDB 2dsphere indexes are sparse by default, so salon documents without a GeoJSON `location` are not indexed. The public discovery endpoint ensures this index exists before running a geospatial query.
 
 Salons without coordinates remain discoverable by name/address through manual area search, but they cannot appear in GPS radius results until an owner adds their coordinates.
 
