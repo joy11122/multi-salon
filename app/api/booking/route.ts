@@ -7,6 +7,8 @@ import { bookingSchema } from '@/lib/validations/booking';
 import { SALON_ID, addMinutes, bookingReference, toDhakaDateTime, getDhakaDate } from '@/lib/utils';
 import { rateLimit } from '@/lib/rate-limit';
 import { findActiveSalonBySlug } from '@/lib/tenancy';
+import { isStaffScheduled } from '@/lib/shifts';
+import { sendBookingNotifications } from '@/lib/notifications';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -86,6 +88,7 @@ export async function POST(request: Request) {
     const bookingRef = bookingReference();
     let created: Record<string, unknown> | null = null;
     for (const barber of staff) {
+      if (!(await isStaffScheduled({ salonId, staffId: barber._id, date: input.date, startAt, endAt }))) continue;
       try {
         await session.withTransaction(async () => {
           const conflicting = await db.collection('appointments').findOne({ salonId, staffId: barber._id, status: { $nin: ['CANCELLED', 'REJECTED'] }, startAt: { $lt: endAt }, endAt: { $gt: startAt } }, { session, projection: { _id: 1 } });
@@ -117,7 +120,11 @@ export async function POST(request: Request) {
         if (duplicate.code !== 'SLOT_BUSY' && !lockConflict) throw error;
       }
     }
-    if (!created) return NextResponse.json({ error: 'That time was just booked. Please select another slot.' }, { status: 409 });
+    if (!created) return NextResponse.json({ error: 'That time was just booked or the selected staff member is not scheduled. Please select another slot.' }, { status: 409 });
+    const salonProfile = salonId === SALON_ID
+      ? await db.collection('settings').findOne({ _id: 'salon' as never }, { projection: { name: 1 } })
+      : await db.collection('salons').findOne({ salonId }, { projection: { name: 1 } });
+    await sendBookingNotifications({ salonId, bookingRef, customerName: String(created.customerName), phone: String(created.phone), email: String(created.email || ''), serviceName, staffName: String(created.staffName), startAt, price: totalPrice, salonName: String(salonProfile?.name || 'Salon') });
     return NextResponse.json({ success: true, bookingRef, status: 'PENDING', message: 'Your appointment request has been received.' }, { status: 201 });
   } catch (error) {
     console.error('booking_create_failed', error);
