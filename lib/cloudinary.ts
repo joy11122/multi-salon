@@ -7,5 +7,5 @@ export function createCloudinaryUploadSignature(timestamp: number, folder: strin
   if (!cloudName || !apiKey || !apiSecret) throw new Error("Cloudinary is not configured.");
   const params = "folder=" + folder + "&timestamp=" + timestamp;
   const signature = createHash("sha1").update(params + apiSecret).digest("hex");
-  return { cloudName, apiKey, timestamp, folder, signature };
+  return { cloudName, apiKey, timestamp, folder, allowedFormats, signature };
 }
