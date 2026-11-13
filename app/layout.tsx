@@ -4,12 +4,13 @@ import { SiteHeader } from '@/components/site-header';
 import { SiteFooter } from '@/components/site-footer';
 import { auth } from '@/lib/auth';
 
-const siteUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://example.com';
+const siteUrl = process.env.NEXT_PUBLIC_APP_URL?.trim();
+const metadataBase = siteUrl ? new URL(siteUrl) : undefined;
 export const metadata: Metadata = {
-  metadataBase: new URL(siteUrl),
+  metadataBase,
   title: { default: "The Gentlemen's Club | Luxury Men's Grooming in Khulna", template: "%s | The Gentlemen's Club" },
   description: "A considered grooming experience in Khulna. Discover precision haircuts, beard styling and refined men's grooming at The Gentlemen's Club.",
-  openGraph: { type: 'website', url: siteUrl, siteName: "The Gentlemen's Club", title: "The Gentlemen's Club | Luxury Men's Grooming in Khulna", description: 'Precision barbering, personal service and a little time well spent.' },
+  openGraph: { type: 'website', ...(siteUrl ? { url: siteUrl } : {}), siteName: "The Gentlemen's Club", title: "The Gentlemen's Club | Luxury Men's Grooming in Khulna", description: 'Precision barbering, personal service and a little time well spent.' },
   robots: { index: true, follow: true },
 };
 
