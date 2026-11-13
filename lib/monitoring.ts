@@ -24,5 +24,12 @@ export async function getHealthStatus() {
     refunds: process.env.STRIPE_SECRET_KEY || (process.env.SSLCOMMERZ_STORE_ID && process.env.SSLCOMMERZ_STORE_PASSWORD) ? "ok" : "not_configured",
   };
   try { await (await getDb()).command({ ping: 1 }); checks.database = "ok"; } catch { checks.database = "error"; }
-  return { status: checks.database === "ok" && checks.sharedRateLimit !== "not_configured" ? "ok" : "degraded", checks, timestamp: new Date().toISOString() };
+  if (checks.sharedRateLimit === "ok") {
+    try {
+      const response = await fetch(process.env.UPSTASH_REDIS_REST_URL!, { method: "POST", headers: { Authorization: "Bearer " + process.env.UPSTASH_REDIS_REST_TOKEN, "Content-Type": "application/json" }, body: JSON.stringify(["PING"]), cache: "no-store", signal: AbortSignal.timeout(2500) });
+      const result = await response.json() as { result?: string };
+      checks.sharedRateLimit = response.ok && result.result === "PONG" ? "ok" : "error";
+    } catch { checks.sharedRateLimit = "error"; }
+  }
+  return { status: checks.database === "ok" && checks.sharedRateLimit === "ok" ? "ok" : "degraded", checks, timestamp: new Date().toISOString() };
 }
