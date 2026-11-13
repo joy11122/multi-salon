@@ -52,13 +52,13 @@ export async function refreshRefundStatuses(salonId?: string) {
   const db = await getDb();
   const filter: Record<string, unknown> = { provider: "SSLCOMMERZ", status: "PENDING", providerRefundId: { $type: "string" } };
   if (salonId) filter.salonId = salonId;
-  const pending = await db.collection("refunds").find(filter).limit(50).toArray();
+  const pending = await db.collection("refunds").find(filter).limit(10).toArray();
   const credentials = sslCommerzCredentials();
   let updated = 0;
   for (const item of pending) {
     try {
       const params = new URLSearchParams({ refund_ref_id: String(item.providerRefundId), store_id: credentials.storeId, store_passwd: credentials.storePassword, format: "json" });
-      const response = await fetch(sslCommerzBase() + "/validator/api/merchantTransIDvalidationAPI.php?" + params.toString(), { method: "GET", cache: "no-store", signal: AbortSignal.timeout(10000) });
+      const response = await fetch(sslCommerzBase() + "/validator/api/merchantTransIDvalidationAPI.php?" + params.toString(), { method: "GET", cache: "no-store", signal: AbortSignal.timeout(4000) });
       if (!response.ok) continue;
       const result = await response.json() as { status?: string; errorReason?: string };
       const status = result.status === "refunded" ? "SUCCEEDED" : result.status === "cancelled" ? "FAILED" : "PENDING";
