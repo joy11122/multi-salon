@@ -42,7 +42,7 @@ export async function sendBookingNotifications(b: Notice) {
 export async function sendBookingCancellationNotice(b: { salonId: string; bookingRef: string; customerName: string; phone: string; email: string; serviceName: string; notificationConsent?: boolean }) {
   const message = "Your booking " + b.bookingRef + " for " + b.serviceName + " has been cancelled.";
   await Promise.all([
-    deliver({ salonId: b.salonId, bookingRef: b.bookingRef, channel: "email", recipient: b.email, run: () => email(b.email, "Booking cancelled · " + b.bookingRef, "Hello " + b.customerName + ",\\n\\n" + message) }),
+    deliver({ salonId: b.salonId, bookingRef: b.bookingRef, channel: "email", recipient: b.email, run: () => email(b.email, "Booking cancelled · " + b.bookingRef, "Hello " + b.customerName + ",\n\n" + message) }),
     b.notificationConsent ? deliver({ salonId: b.salonId, bookingRef: b.bookingRef, channel: "sms", recipient: b.phone, run: () => twilio(b.phone, message, "sms") }) : audit({ salonId: b.salonId, bookingRef: b.bookingRef, channel: "sms", recipient: b.phone, status: "SKIPPED_NO_CONSENT" }),
     b.notificationConsent ? deliver({ salonId: b.salonId, bookingRef: b.bookingRef, channel: "whatsapp", recipient: b.phone, run: () => twilio(b.phone, message, "whatsapp") }) : audit({ salonId: b.salonId, bookingRef: b.bookingRef, channel: "whatsapp", recipient: b.phone, status: "SKIPPED_NO_CONSENT" }),
   ]);
