@@ -33,7 +33,8 @@ function breakIntervals(
     let start = minuteOfDay(pause.startTime);
     let end = minuteOfDay(pause.endTime);
     if (start < shiftStartClock) start += 1440;
-    if (end <= minuteOfDay(pause.startTime)) end += 1440;
+    if (end < shiftStartClock) end += 1440;
+    if (end <= start) end += 1440;
     return { start: start + offset, end: end + offset };
   });
 }
