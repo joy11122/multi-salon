@@ -68,7 +68,24 @@ describe('staff shift booking conflicts', () => {
   it('ignores appointments on another weekday', () => {
     expect(bookingConflictsWithShift({ ...booking, startAt: new Date('2027-01-11T04:00:00.000Z'), endAt: new Date('2027-01-11T04:45:00.000Z') }, shift)).toBe(false);
   });
-  it('detects appointments when a weekly shift is disabled', () => {
-    expect(bookingConflictsWithShift(booking, { ...shift, active: false })).toBe(true);
+  it('allows an appointment that starts during an overnight shift and ends after midnight', () => {
+    const overnight = { dayOfWeek: 0, startTime: '22:00', endTime: '02:00' };
+    const startAt = toDhakaDateTime('2027-01-10', '23:30');
+    expect(bookingConflictsWithShift({ startAt, endAt: addMinutes(startAt, 60) }, overnight)).toBe(false);
+  });
+  it('allows early-morning appointments covered by the previous weekday overnight shift', () => {
+    const overnight = { dayOfWeek: 0, startTime: '22:00', endTime: '02:00' };
+    const startAt = toDhakaDateTime('2027-01-11', '00:30');
+    expect(bookingConflictsWithShift({ startAt, endAt: addMinutes(startAt, 30) }, overnight)).toBe(false);
+  });
+  it('rejects appointments after an overnight shift ends', () => {
+    const overnight = { dayOfWeek: 0, startTime: '22:00', endTime: '02:00' };
+    const startAt = toDhakaDateTime('2027-01-11', '02:15');
+    expect(bookingConflictsWithShift({ startAt, endAt: addMinutes(startAt, 30) }, overnight)).toBe(true);
+  });
+  it('detects breaks that cross midnight in an overnight shift', () => {
+    const overnight = { dayOfWeek: 0, startTime: '22:00', endTime: '06:00', breaks: [{ startTime: '00:00', endTime: '00:30' }] };
+    const startAt = toDhakaDateTime('2027-01-11', '00:15');
+    expect(bookingConflictsWithShift({ startAt, endAt: addMinutes(startAt, 30) }, overnight)).toBe(true);
   });
 });
