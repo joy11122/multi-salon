@@ -121,12 +121,13 @@ export async function POST(request: Request) {
         if (duplicate.code !== 'SLOT_BUSY' && !lockConflict) throw error;
       }
     }
-    if (!created) return NextResponse.json({ error: 'That time was just booked or the selected staff member is not scheduled. Please select another slot.' }, { status: 409 });
+    const createdBooking = created as Record<string, unknown> | null;
+    if (!createdBooking) return NextResponse.json({ error: 'That time was just booked or the selected staff member is not scheduled. Please select another slot.' }, { status: 409 });
     try {
       const salonProfile = salonId === SALON_ID
         ? await db.collection('settings').findOne({ _id: 'salon' as never }, { projection: { name: 1 } })
         : await db.collection('salons').findOne({ salonId }, { projection: { name: 1 } });
-      await sendBookingNotifications({ salonId, bookingRef, customerName: String(created.customerName), phone: String(created.phone), email: String(created.email || ''), serviceName, staffName: String(created.staffName), startAt, price: totalPrice, salonName: String(salonProfile?.name || 'Salon'), notificationConsent: input.notificationConsent });
+      await sendBookingNotifications({ salonId, bookingRef, customerName: String(createdBooking.customerName), phone: String(createdBooking.phone), email: String(createdBooking.email || ''), serviceName, staffName: String(createdBooking.staffName), startAt, price: totalPrice, salonName: String(salonProfile?.name || 'Salon'), notificationConsent: input.notificationConsent });
     } catch (notificationError) {
       await captureOperationalError({ error: notificationError, route: '/api/booking', method: 'POST', salonId, severity: 'warning', metadata: { bookingRef, stage: 'post-booking-notification' } });
     }
