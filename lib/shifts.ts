@@ -13,7 +13,10 @@ export async function isStaffScheduled(input: { salonId: string; staffId: Object
     db.collection("staffLeave").findOne({ salonId: input.salonId, staffId: input.staffId, date: input.date, status: { $ne: "CANCELLED" }, $or: [{ type: "FULL_DAY" }, { startTime: { $lt: endText }, endTime: { $gt: startText } }] }),
   ]);
   if (leave) return false;
-  if (!shifts.length) return true;
+  if (!shifts.length) {
+    const configured = await db.collection('staffShifts').countDocuments({ salonId: input.salonId, staffId: input.staffId });
+    return configured === 0;
+  }
   const start = minuteOfDay(startText), end = minuteOfDay(endText);
   return shifts.some((shift) => {
     if (start < minuteOfDay(String(shift.startTime)) || end > minuteOfDay(String(shift.endTime))) return false;
