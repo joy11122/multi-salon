@@ -8,8 +8,12 @@ const sections = [
   ['Appointments', '/appointments'],
   ['Services', '/services'],
   ['Staff', '/staff'],
+  ['Staff shifts', '/shifts'],
+  ['Media library', '/media'],
+  ['Monitoring', '/monitoring'],
   ['Customers', '/customers'],
   ['Payments', '/payments'],
+  ['Refunds', '/refunds'],
   ['Offers', '/offers'],
   ['Reviews', '/reviews'],
   ['Settings', '/settings'],
@@ -42,7 +46,7 @@ export default async function SalonAdminLayout({ children, params }: { children:
         </div>
         <div className="grid gap-7 lg:grid-cols-[220px_1fr]">
           <nav className="flex gap-2 overflow-x-auto pb-2 lg:flex-col lg:overflow-visible">
-            {sections.map(([label, suffix]) => (
+            {sections.filter(([label]) => access.membership.role !== 'MANAGER' || !['Refunds', 'Monitoring'].includes(label)).map(([label, suffix]) => (
               <Link key={label} href={`/salons/${encodeURIComponent(params.slug)}/admin${suffix}`} className="whitespace-nowrap border border-white/10 px-4 py-3 text-xs text-[#bbb] transition hover:border-[#c6a15b] hover:text-[#c6a15b]">{label}</Link>
             ))}
           </nav>

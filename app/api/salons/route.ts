@@ -94,7 +94,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Sign in with an account that has an email address to create a salon.' }, { status: 401 });
   }
 
-  if (!rateLimit(`salon-create:${session.user.id}`, 5, 60 * 60_000).allowed) {
+  if (!(await rateLimit(`salon-create:${session.user.id}`, 5, 60 * 60_000)).allowed) {
     return NextResponse.json({ error: 'You have reached the salon creation limit. Try again later.' }, { status: 429 });
   }
 

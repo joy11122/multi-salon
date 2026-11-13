@@ -7,6 +7,9 @@ import { bookingSchema } from '@/lib/validations/booking';
 import { SALON_ID, addMinutes, bookingReference, toDhakaDateTime, getDhakaDate } from '@/lib/utils';
 import { rateLimit } from '@/lib/rate-limit';
 import { findActiveSalonBySlug } from '@/lib/tenancy';
+import { isStaffScheduled } from '@/lib/shifts';
+import { sendBookingNotifications } from '@/lib/notifications';
+import { captureOperationalError } from '@/lib/monitoring';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -36,7 +39,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
-  if (!rateLimit(`booking:${ip}`, 6, 60_000).allowed) return NextResponse.json({ error: 'Too many booking attempts. Please wait a moment.' }, { status: 429 });
+  if (!(await rateLimit(`booking:${ip}`, 6, 60_000)).allowed) return NextResponse.json({ error: 'Too many booking attempts. Please wait a moment.' }, { status: 429 });
   let session: ClientSession | undefined;
   try {
     const parsed = bookingSchema.safeParse(await request.json());
@@ -86,6 +89,7 @@ export async function POST(request: Request) {
     const bookingRef = bookingReference();
     let created: Record<string, unknown> | null = null;
     for (const barber of staff) {
+      if (!(await isStaffScheduled({ salonId, staffId: barber._id, date: input.date, startAt, endAt }))) continue;
       try {
         await session.withTransaction(async () => {
           const conflicting = await db.collection('appointments').findOne({ salonId, staffId: barber._id, status: { $nin: ['CANCELLED', 'REJECTED'] }, startAt: { $lt: endAt }, endAt: { $gt: startAt } }, { session, projection: { _id: 1 } });
@@ -104,7 +108,7 @@ export async function POST(request: Request) {
             email: bookingEmail, serviceId: orderedServices[0]._id, serviceIds: orderedServices.map((service) => service._id),
             serviceName, serviceNames, staffId: barber._id, staffName: barber.name, staffEmail: barber.email || '',
             price: totalPrice, durationMinutes: totalDuration, startAt, endAt,
-            notes: input.notes, status: 'PENDING', paymentStatus: 'UNPAID', source: 'WEBSITE', createdAt: new Date(), updatedAt: new Date(),
+            notes: input.notes, notificationConsent: input.notificationConsent, status: 'PENDING', paymentStatus: 'UNPAID', source: 'WEBSITE', createdAt: new Date(), updatedAt: new Date(),
           };
           const result = await db.collection('appointments').insertOne(appointment, { session });
           created = { ...appointment, _id: result.insertedId };
@@ -117,10 +121,19 @@ export async function POST(request: Request) {
         if (duplicate.code !== 'SLOT_BUSY' && !lockConflict) throw error;
       }
     }
-    if (!created) return NextResponse.json({ error: 'That time was just booked. Please select another slot.' }, { status: 409 });
+    const createdBooking = created as Record<string, unknown> | null;
+    if (!createdBooking) return NextResponse.json({ error: 'That time was just booked or the selected staff member is not scheduled. Please select another slot.' }, { status: 409 });
+    try {
+      const salonProfile = salonId === SALON_ID
+        ? await db.collection('settings').findOne({ _id: 'salon' as never }, { projection: { name: 1 } })
+        : await db.collection('salons').findOne({ salonId }, { projection: { name: 1 } });
+      await sendBookingNotifications({ salonId, bookingRef, customerName: String(createdBooking.customerName), phone: String(createdBooking.phone), email: String(createdBooking.email || ''), serviceName, staffName: String(createdBooking.staffName), startAt, price: totalPrice, salonName: String(salonProfile?.name || 'Salon'), notificationConsent: input.notificationConsent });
+    } catch (notificationError) {
+      await captureOperationalError({ error: notificationError, route: '/api/booking', method: 'POST', salonId, severity: 'warning', metadata: { bookingRef, stage: 'post-booking-notification' } });
+    }
     return NextResponse.json({ success: true, bookingRef, status: 'PENDING', message: 'Your appointment request has been received.' }, { status: 201 });
   } catch (error) {
-    console.error('booking_create_failed', error);
+    await captureOperationalError({ error, route: '/api/booking', method: 'POST' });
     return NextResponse.json({ error: 'We could not complete your booking. Please try again.' }, { status: 500 });
   } finally { await session?.endSession(); }
 }

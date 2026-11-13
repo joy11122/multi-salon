@@ -19,7 +19,7 @@ providers.push(Credentials({
   async authorize(credentials) {
     const email = String(credentials?.email || '').trim().toLowerCase();
     const password = String(credentials?.password || '');
-    if (!email || !password || !rateLimit(`login:${email}`, 10, 60_000).allowed) return null;
+    if (!email || !password || !(await rateLimit(`login:${email}`, 10, 60_000)).allowed) return null;
     const db = await getDb();
     const user = await db.collection('users').findOne({ email });
     if (!user || typeof user.passwordHash !== 'string' || !(await compare(password, user.passwordHash))) return null;

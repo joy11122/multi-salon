@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import Image from 'next/image';
 import { notFound } from 'next/navigation';
 import { getDb } from '@/lib/db/client';
 import { findActiveSalonBySlug } from '@/lib/tenancy';
@@ -13,7 +14,7 @@ export default async function PublicSalonPage({ params }: { params: { slug: stri
   const salonId = String(salon.salonId);
   const services = await (await getDb()).collection('services')
     .find({ salonId, active: true })
-    .project({ name: 1, description: 1, price: 1, durationMinutes: 1, category: 1 })
+    .project({ name: 1, description: 1, price: 1, durationMinutes: 1, category: 1, imageUrl: 1 })
     .sort({ sortOrder: 1, name: 1 })
     .limit(100)
     .toArray();
@@ -34,6 +35,7 @@ export default async function PublicSalonPage({ params }: { params: { slug: stri
         <h2 className="serif mt-3 text-3xl">Choose your experience.</h2>
         {services.length ? <div className="mt-8 grid gap-4 md:grid-cols-2">
           {services.map((service) => <article key={String(service._id)} className="border border-white/10 bg-[#151515] p-6">
+            {typeof service.imageUrl === "string" && service.imageUrl.startsWith("https://res.cloudinary.com/") && <Image src={service.imageUrl} alt={String(service.name)} width={1200} height={675} unoptimized className="mb-5 aspect-[16/9] w-full object-cover"/>}
             <div className="flex items-start justify-between gap-4"><h3 className="serif text-xl">{String(service.name)}</h3><span className="text-sm text-[#c6a15b]">{money(Number(service.price || 0))}</span></div>
             <p className="mt-3 text-sm leading-7 text-[#999]">{String(service.description || '')}</p>
             <p className="mt-4 text-xs text-[#777]">{Number(service.durationMinutes || 30)} minutes</p>

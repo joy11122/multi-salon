@@ -70,13 +70,14 @@ export async function POST(request: Request, context: { params: { resource: stri
   if (!resources.has(resource) || resource === 'appointments' || resource === 'customers' || resource === 'notifications' || resource === 'settings') return NextResponse.json({ error: 'This resource cannot be created here.' }, { status: 404 });
   try {
     const input = await request.json() as Record<string, unknown>;
-    const allowed = resource === 'services' ? ['name','description','category','price','durationMinutes','active','sortOrder']
-      : resource === 'staff' ? ['name','email','phone','title','bio','specialties','active','commissionRate']
-      : resource === 'payments' ? ['appointmentId','amount','method','status','reference']
+    const allowed = resource === 'services' ? ['name','description','category','price','durationMinutes','imageUrl','active','sortOrder']
+      : resource === 'staff' ? ['name','email','phone','title','bio','specialties','imageUrl','active','commissionRate']
+      : resource === 'payments' ? ['appointmentId','amount','method','status','reference','provider','bankTranId']
       : resource === 'reviews' ? ['customerName','rating','comment','published']
       : ['title','description','discountType','discountValue','startAt','endAt','active','code'];
     const doc: Record<string, unknown> = { salonId: scope.salonId, createdAt: new Date(), updatedAt: new Date() };
     for (const key of allowed) if (input[key] !== undefined) doc[key] = input[key];
+    if (doc.imageUrl !== undefined && doc.imageUrl !== '' && (typeof doc.imageUrl !== 'string' || !/^https:\/\/res\.cloudinary\.com\/[a-zA-Z0-9_-]+\/image\/upload\//.test(doc.imageUrl))) return NextResponse.json({ error: 'Use a valid secure Cloudinary image URL.' }, { status: 400 });
     if (resource === 'services' && (typeof doc.name !== 'string' || !Number.isInteger(Number(doc.price)) || Number(doc.price) < 0 || !Number.isInteger(Number(doc.durationMinutes)) || Number(doc.durationMinutes) < 10)) return NextResponse.json({ error: 'Service name, price and duration are required.' }, { status: 400 });
     if (resource === 'services') { doc.price = Number(doc.price); doc.durationMinutes = Number(doc.durationMinutes); }
     if (resource === 'staff' && typeof doc.email === 'string') doc.email = doc.email.toLowerCase();
@@ -137,11 +138,11 @@ export async function PATCH(request: Request, context: { params: { resource: str
     const id = String(input.id || '');
     if (!ObjectId.isValid(id)) return NextResponse.json({ error: 'Invalid record ID.' }, { status: 400 });
     const allowed = resource === 'appointments' ? ['status']
-      : resource === 'services' ? ['name','description','category','price','durationMinutes','active','sortOrder']
-      : resource === 'staff' ? ['name','email','phone','title','bio','specialties','active','commissionRate']
+      : resource === 'services' ? ['name','description','category','price','durationMinutes','imageUrl','active','sortOrder']
+      : resource === 'staff' ? ['name','email','phone','title','bio','specialties','imageUrl','active','commissionRate']
       : resource === 'reviews' ? ['customerName','rating','comment','published']
       : resource === 'offers' ? ['title','description','code','active','discountType','discountValue','endAt']
-      : resource === 'payments' ? ['status','method','reference']
+      : resource === 'payments' ? ['status','method','reference','provider','bankTranId']
       : resource === 'notifications' ? ['read'] : [];
     if (!allowed.length || (scope.role === 'STAFF' && resource !== 'appointments')) return NextResponse.json({ error: 'This update is not allowed.' }, { status: 403 });
     const update: Record<string, unknown> = { updatedAt: new Date() };
@@ -154,6 +155,7 @@ export async function PATCH(request: Request, context: { params: { resource: str
       const alreadyPaid = await db.collection('payments').aggregate([{ $match: { salonId: scope.salonId, appointmentId: payment.appointmentId, status: 'PAID', _id: { $ne: payment._id } } }, { $group: { _id: null, total: { $sum: '$amount' } } }]).toArray();
       if (!appointment || Number(alreadyPaid[0]?.total || 0) + Number(payment.amount) > Number(appointment.price)) return NextResponse.json({ error: 'Marking this payment paid would exceed the appointment balance.' }, { status: 400 });
     }
+    if (update.imageUrl !== undefined && update.imageUrl !== '' && (typeof update.imageUrl !== 'string' || !/^https:\/\/res\.cloudinary\.com\/[a-zA-Z0-9_-]+\/image\/upload\//.test(update.imageUrl))) return NextResponse.json({ error: 'Use a valid secure Cloudinary image URL.' }, { status: 400 });
     if (resource === 'reviews' && update.rating !== undefined && (!Number.isInteger(Number(update.rating)) || Number(update.rating) < 1 || Number(update.rating) > 5)) return NextResponse.json({ error: 'Review rating must be between 1 and 5.' }, { status: 400 });
     if (resource === 'offers' && update.discountType === 'PERCENT' && Number(update.discountValue) > 100) return NextResponse.json({ error: 'Percentage discount cannot exceed 100.' }, { status: 400 });
     if (resource === 'services' && ((update.price !== undefined && (!Number.isInteger(Number(update.price)) || Number(update.price) < 0)) || (update.durationMinutes !== undefined && (!Number.isInteger(Number(update.durationMinutes)) || Number(update.durationMinutes) < 10)))) return NextResponse.json({ error: 'Service price and duration must be valid whole numbers.' }, { status: 400 });

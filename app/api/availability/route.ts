@@ -4,10 +4,12 @@ import { getDb } from '@/lib/db/client';
 import { SALON_ID, addMinutes, toDhakaDateTime, getDhakaDate } from '@/lib/utils';
 import { rateLimit } from '@/lib/rate-limit';
 import { findActiveSalonBySlug } from '@/lib/tenancy';
+import { getStaffScheduleChecker } from '@/lib/shifts';
+import { captureOperationalError } from '@/lib/monitoring';
 
 export async function GET(request: Request) {
   const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
-  if (!rateLimit(`availability:${ip}`, 40, 60_000).allowed) return NextResponse.json({ error: 'Too many availability requests. Please wait a moment.' }, { status: 429 });
+  if (!(await rateLimit(`availability:${ip}`, 40, 60_000)).allowed) return NextResponse.json({ error: 'Too many availability requests. Please wait a moment.' }, { status: 429 });
   try {
     const { searchParams } = new URL(request.url);
     const date = searchParams.get('date') || '';
@@ -42,9 +44,11 @@ export async function GET(request: Request) {
     const now = new Date();
     const slots: { time: string; staffId: string; staffName: string }[] = [];
     for (const barber of staff) {
+      const isScheduled = await getStaffScheduleChecker({ salonId, staffId: barber._id, date });
       for (let cursor = new Date(start); addMinutes(cursor, totalDuration) <= close; cursor = addMinutes(cursor, 30)) {
         if (cursor <= now) continue;
         const end = addMinutes(cursor, totalDuration);
+        if (!isScheduled(cursor, end)) continue;
         const busy = await db.collection('appointments').findOne({ salonId, staffId: barber._id, status: { $nin: ['CANCELLED', 'REJECTED'] }, startAt: { $lt: end }, endAt: { $gt: cursor } }, { projection: { _id: 1 } });
         if (!busy) slots.push({ time: new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Dhaka', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(cursor), staffId: String(barber._id), staffName: barber.name });
       }
@@ -53,7 +57,7 @@ export async function GET(request: Request) {
     for (const slot of slots) unique.set(`${slot.time}-${staffId === 'any' ? 'any' : slot.staffId}`, slot);
     return NextResponse.json({ slots: [...unique.values()] });
   } catch (error) {
-    console.error('availability_failed', error);
+    await captureOperationalError({ error, route: '/api/availability', method: 'GET' });
     return NextResponse.json({ error: 'Could not load available times.' }, { status: 500 });
   }
 }
