@@ -3,7 +3,6 @@ import { getDb } from '@/lib/db/client';
 import { rateLimit } from '@/lib/rate-limit';
 import { ensureSalonLocationIndex } from '@/lib/db/indexes';
 import { isValidCoordinates } from '@/lib/geo';
-import { rateLimit } from '@/lib/rate-limit';
 
 export const dynamic = 'force-dynamic';
 
