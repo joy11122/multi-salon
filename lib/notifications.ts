@@ -3,7 +3,7 @@ import { captureOperationalError } from "@/lib/monitoring";
 type Notice = { salonId: string; bookingRef: string; customerName: string; phone: string; email: string; serviceName: string; staffName: string; startAt: Date; price: number; salonName: string };
 async function email(to: string, subject: string, text: string) {
   if (!to || !process.env.RESEND_API_KEY || !process.env.RESEND_FROM_EMAIL) return { skipped: true };
-  const r = await fetch("https://api.resend.com/emails", { method: "POST", headers: { Authorization: "Bearer " + process.env.RESEND_API_KEY, "Content-Type": "application/json" }, body: JSON.stringify({ from: process.env.RESEND_FROM_EMAIL, to: [to], subject, text }), signal: AbortSignal.timeout(8000) });
+  const r = await fetch("https://api.resend.com/emails", { method: "POST", headers: { Authorization: "Bearer " + process.env.RESEND_API_KEY, "Content-Type": "application/json" }, body: JSON.stringify({ from: process.env.RESEND_FROM_EMAIL, to: [to], subject, text }), signal: AbortSignal.timeout(5000) });
   if (!r.ok) throw new Error("Resend email failed: " + r.status);
   return await r.json() as { id?: string };
 }
