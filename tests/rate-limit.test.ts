@@ -1,11 +1,12 @@
-import { describe, expect, it } from 'vitest';
-import { rateLimit } from '../lib/rate-limit';
+import { beforeEach, describe, expect, it } from "vitest";
+import { rateLimit } from "../lib/rate-limit";
 
-describe('rateLimit', () => {
-  it('allows requests up to the configured threshold', () => {
-    const key = `test-${Date.now()}-allow`;
-    expect(rateLimit(key, 2, 60_000).allowed).toBe(true);
-    expect(rateLimit(key, 2, 60_000).allowed).toBe(true);
-    expect(rateLimit(key, 2, 60_000).allowed).toBe(false);
+describe("rateLimit", () => {
+  beforeEach(() => { process.env.NODE_ENV = "test"; delete process.env.UPSTASH_REDIS_REST_URL; delete process.env.UPSTASH_REDIS_REST_TOKEN; });
+  it("allows requests up to the configured threshold", async () => {
+    const key = "test-" + Date.now() + "-allow";
+    expect((await rateLimit(key, 2, 60_000)).allowed).toBe(true);
+    expect((await rateLimit(key, 2, 60_000)).allowed).toBe(true);
+    expect((await rateLimit(key, 2, 60_000)).allowed).toBe(false);
   });
 });
