@@ -1,6 +1,6 @@
 import { getDb } from "@/lib/db/client";
 import { captureOperationalError } from "@/lib/monitoring";
-type Notice = { salonId: string; bookingRef: string; customerName: string; phone: string; email: string; serviceName: string; staffName: string; startAt: Date; price: number; salonName: string };
+type Notice = { salonId: string; bookingRef: string; customerName: string; phone: string; email: string; serviceName: string; staffName: string; startAt: Date; price: number; salonName: string; notificationConsent?: boolean };
 async function email(to: string, subject: string, text: string) {
   if (!to || !process.env.RESEND_API_KEY || !process.env.RESEND_FROM_EMAIL) return { skipped: true };
   const r = await fetch("https://api.resend.com/emails", { method: "POST", headers: { Authorization: "Bearer " + process.env.RESEND_API_KEY, "Content-Type": "application/json" }, body: JSON.stringify({ from: process.env.RESEND_FROM_EMAIL, to: [to], subject, text }), signal: AbortSignal.timeout(5000) });
@@ -35,8 +35,8 @@ export async function sendBookingNotifications(b: Notice) {
   const message = "Booking " + b.bookingRef + ": " + b.serviceName + " at " + b.salonName + ", " + when + ". Staff: " + b.staffName + ". Amount: BDT " + b.price + ". Pending salon confirmation.";
   await Promise.all([
     deliver({ salonId: b.salonId, bookingRef: b.bookingRef, channel: "email", recipient: b.email, run: () => email(b.email, "Booking received · " + b.bookingRef, "Hello " + b.customerName + ",\n\n" + message) }),
-    deliver({ salonId: b.salonId, bookingRef: b.bookingRef, channel: "sms", recipient: b.phone, run: () => twilio(b.phone, message, "sms") }),
-    deliver({ salonId: b.salonId, bookingRef: b.bookingRef, channel: "whatsapp", recipient: b.phone, run: () => twilio(b.phone, message, "whatsapp") }),
+    b.notificationConsent ? deliver({ salonId: b.salonId, bookingRef: b.bookingRef, channel: "sms", recipient: b.phone, run: () => twilio(b.phone, message, "sms") }) : audit({ salonId: b.salonId, bookingRef: b.bookingRef, channel: "sms", recipient: b.phone, status: "SKIPPED_NO_CONSENT" }),
+    b.notificationConsent ? deliver({ salonId: b.salonId, bookingRef: b.bookingRef, channel: "whatsapp", recipient: b.phone, run: () => twilio(b.phone, message, "whatsapp") }) : audit({ salonId: b.salonId, bookingRef: b.bookingRef, channel: "whatsapp", recipient: b.phone, status: "SKIPPED_NO_CONSENT" }),
   ]);
 }
 export async function sendBookingCancellationNotice(b: { salonId: string; bookingRef: string; customerName: string; phone: string; email: string; serviceName: string }) {
