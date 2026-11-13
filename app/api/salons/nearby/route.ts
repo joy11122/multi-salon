@@ -15,7 +15,9 @@ export async function GET(request: Request) {
   const lat = Number(params.get('lat'));
   const lng = Number(params.get('lng'));
   const hasCoordinateParams = params.has('lat') || params.has('lng');
-  const hasCoordinates = params.has('lat') && params.has('lng') && isValidCoordinates(lat, lng);
+  const hasCoordinates = params.has('lat') && params.has('lng')
+    && Boolean(params.get('lat')?.trim()) && Boolean(params.get('lng')?.trim())
+    && isValidCoordinates(lat, lng);
   if (hasCoordinateParams && !hasCoordinates) {
     return NextResponse.json({ error: 'Enter valid latitude and longitude coordinates.' }, { status: 400 });
   }
