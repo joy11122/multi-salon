@@ -3,7 +3,7 @@ import { ObjectId } from "mongodb";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { getDb } from "@/lib/db/client";
-import { createStripeRefund } from "@/lib/refunds";
+import { createRefund, refreshRefundStatuses } from "@/lib/refunds";
 import { findActiveSalonBySlug, requireSalonMembership } from "@/lib/tenancy";
 import { captureOperationalError } from "@/lib/monitoring";
 const schema = z.object({ salonSlug: z.string().min(3).max(80), paymentId: z.string().regex(/^[a-f\d]{24}$/i), amount: z.number().int().positive().optional(), reason: z.string().trim().max(500).optional() }).strict();
@@ -19,6 +19,7 @@ async function authorize(request: Request) {
 export async function GET(request: Request) {
   const s = await authorize(request); if ("response" in s) return s.response;
   try {
+    if (process.env.SSLCOMMERZ_STORE_ID && process.env.SSLCOMMERZ_STORE_PASSWORD) await refreshRefundStatuses(s.salonId);
     const items = await (await getDb()).collection("refunds").find({ salonId: s.salonId }).sort({ createdAt: -1 }).limit(100).toArray();
     return NextResponse.json({ items: items.map(x => ({ ...x, _id: String(x._id), paymentId: String(x.paymentId) })) });
   } catch (error) { console.error("refunds_list_failed", error); return NextResponse.json({ error: "Could not load refunds." }, { status: 500 }); }
@@ -29,7 +30,7 @@ export async function POST(request: Request) {
     const parsed = schema.safeParse(await request.json());
     if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0]?.message || "Invalid refund request." }, { status: 400 });
     if (!ObjectId.isValid(parsed.data.paymentId)) return NextResponse.json({ error: "Invalid payment ID." }, { status: 400 });
-    const result = await createStripeRefund({ salonId: s.salonId, paymentId: new ObjectId(parsed.data.paymentId), amount: parsed.data.amount, reason: parsed.data.reason, actorId: s.actorId });
+    const result = await createRefund({ salonId: s.salonId, paymentId: new ObjectId(parsed.data.paymentId), amount: parsed.data.amount, reason: parsed.data.reason, actorId: s.actorId });
     return NextResponse.json({ success: true, ...result }, { status: 201 });
   } catch (error) {
     await captureOperationalError({ error, route: "/api/admin/refunds", method: "POST" });
