@@ -10,7 +10,7 @@ export async function GET(request: Request) {
   const access = await requireSalonMembership(await auth(), String(salon.salonId), ["OWNER", "ADMIN"]);
   if ("response" in access) return access.response;
   try {
-    const items = await (await getDb()).collection("monitoringEvents").find({ $or: [{ salonId: String(salon.salonId) }, { salonId: { $exists: false } }] }).sort({ createdAt: -1 }).limit(100).toArray();
+    const items = await (await getDb()).collection("monitoringEvents").find({ salonId: String(salon.salonId) }).sort({ createdAt: -1 }).limit(100).toArray();
     return NextResponse.json({ items: items.map(x => ({ ...x, _id: String(x._id) })) });
   } catch (error) { console.error("monitoring_events_list_failed", error); return NextResponse.json({ error: "Could not load monitoring events." }, { status: 500 }); }
 }
