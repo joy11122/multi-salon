@@ -4,6 +4,7 @@ import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { getDb } from "@/lib/db/client";
 import { findActiveSalonBySlug, requireSalonMembership } from "@/lib/tenancy";
+import { captureOperationalError } from "@/lib/monitoring";
 
 const time = z.string().regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/);
 const shiftSchema = z.object({ kind: z.literal("shift"), staffId: z.string().regex(/^[a-f\d]{24}$/i), dayOfWeek: z.number().int().min(0).max(6), startTime: time, endTime: time, breaks: z.array(z.object({ startTime: time, endTime: time })).max(5).default([]), active: z.boolean().default(true) }).strict();
@@ -52,7 +53,7 @@ export async function POST(request: Request) {
       await db.collection("staffLeave").insertOne({ ...leave, salonId: s.salonId, staffId, status: "ACTIVE", createdAt: now, updatedAt: now });
     }
     return NextResponse.json({ success: true }, { status: 201 });
-  } catch (error) { console.error("staff_schedule_save_failed", error); return NextResponse.json({ error: "Could not save staff schedule." }, { status: 500 }); }
+  } catch (error) { await captureOperationalError({ error, route: "/api/admin/shifts", method: "POST", salonId: s.salonId }); return NextResponse.json({ error: "Could not save staff schedule." }, { status: 500 }); }
 }
 export async function DELETE(request: Request) {
   const s = await scope(request); if ("response" in s) return s.response;
@@ -61,5 +62,5 @@ export async function DELETE(request: Request) {
   try {
     const result = await (await getDb()).collection(kind === "shift" ? "staffShifts" : "staffLeave").deleteOne({ _id: new ObjectId(id), salonId: s.salonId });
     return result.deletedCount ? NextResponse.json({ success: true }) : NextResponse.json({ error: "Schedule not found." }, { status: 404 });
-  } catch (error) { console.error("staff_schedule_delete_failed", error); return NextResponse.json({ error: "Could not delete schedule." }, { status: 500 }); }
+  } catch (error) { await captureOperationalError({ error, route: "/api/admin/shifts", method: "DELETE", salonId: s.salonId }); return NextResponse.json({ error: "Could not delete schedule." }, { status: 500 }); }
 }
