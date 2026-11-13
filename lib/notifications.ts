@@ -10,7 +10,9 @@ async function twilio(to: string, body: string, channel: "sms" | "whatsapp") {
   const sid = process.env.TWILIO_ACCOUNT_SID, token = process.env.TWILIO_AUTH_TOKEN;
   const from = channel === "sms" ? process.env.TWILIO_SMS_FROM : process.env.TWILIO_WHATSAPP_FROM;
   if (!to || !sid || !token || !from) return { skipped: true };
-  const recipient = channel === "whatsapp" && !to.startsWith("whatsapp:") ? "whatsapp:" + to : to;
+  const digits = to.replace(/[^0-9+]/g, "");
+  const e164 = digits.startsWith("+") ? digits : digits.startsWith("880") ? "+" + digits : digits.startsWith("0") ? "+88" + digits : "+" + digits;
+  const recipient = channel === "whatsapp" ? (e164.startsWith("whatsapp:") ? e164 : "whatsapp:" + e164) : e164;
   const sender = channel === "whatsapp" && !from.startsWith("whatsapp:") ? "whatsapp:" + from : from;
   const contentSid = channel === "whatsapp" ? process.env.TWILIO_WHATSAPP_CONTENT_SID : undefined;
   const form = new URLSearchParams({ To: recipient, From: sender });
