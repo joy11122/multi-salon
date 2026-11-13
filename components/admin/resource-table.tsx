@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 
 type Item=Record<string,unknown>&{_id:string};
-const fields:Record<string,string[]>={services:['name','description','category','price','durationMinutes'],staff:['name','email','phone','title'],offers:['title','description','code','discountType','discountValue'],reviews:['customerName','rating','comment'],payments:['appointmentId','amount','method','reference']};
+const fields:Record<string,string[]>={services:['name','description','category','price','durationMinutes','imageUrl'],staff:['name','email','phone','title','imageUrl'],offers:['title','description','code','discountType','discountValue'],reviews:['customerName','rating','comment'],payments:['appointmentId','amount','method','reference']};
 const labels:Record<string,string>={services:'Service',staff:'Barber / staff member',offers:'Offer',reviews:'Review'};
 export function ResourceTable({resource,salonSlug}:{resource:string;salonSlug?:string}){const [items,setItems]=useState<Item[]>([]);const [loading,setLoading]=useState(true);const [error,setError]=useState('');const [form,setForm]=useState<Record<string,string>>({});const [saving,setSaving]=useState(false);const [editingId,setEditingId]=useState('');const keys=fields[resource]||[];const apiUrl=`/api/admin/${resource}${salonSlug?`?salonSlug=${encodeURIComponent(salonSlug)}`:''}`;
  async function load(){setLoading(true);try{const r=await fetch(apiUrl);const d=await r.json();if(!r.ok)throw new Error(d.error);setItems(d.items||[]);}catch(e){setError(e instanceof Error?e.message:'Could not load records.');}finally{setLoading(false);}}
