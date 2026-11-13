@@ -1,14 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import { distanceKm, isValidCoordinates } from '@/lib/geo';
 
-function distanceKm(fromLat: number, fromLng: number, toLat: number, toLng: number) {
-  const radians = (value: number) => value * Math.PI / 180;
-  const dLat = radians(toLat - fromLat);
-  const dLng = radians(toLng - fromLng);
-  const a = Math.sin(dLat / 2) ** 2 + Math.cos(radians(fromLat)) * Math.cos(radians(toLat)) * Math.sin(dLng / 2) ** 2;
-  return 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
-
-describe('salon discovery distance', () => {
+describe('salon discovery geospatial helpers', () => {
   it('returns zero for identical coordinates', () => {
     expect(distanceKm(22.8456, 89.5403, 22.8456, 89.5403)).toBe(0);
   });
@@ -17,5 +10,12 @@ describe('salon discovery distance', () => {
     const distance = distanceKm(22.8456, 89.5403, 22.8556, 89.5403);
     expect(distance).toBeGreaterThan(1);
     expect(distance).toBeLessThan(1.2);
+  });
+
+  it('rejects coordinates outside geographic bounds', () => {
+    expect(isValidCoordinates(22.8, 89.5)).toBe(true);
+    expect(isValidCoordinates(91, 89.5)).toBe(false);
+    expect(isValidCoordinates(22.8, 181)).toBe(false);
+    expect(isValidCoordinates(Number.NaN, 89.5)).toBe(false);
   });
 });
