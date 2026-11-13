@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { MapPin, Navigation, Search, LocateFixed, ExternalLink } from 'lucide-react';
+import { distanceKm } from '@/lib/geo';
 
 type Salon = {
   id: string;
@@ -15,14 +16,6 @@ type Salon = {
 };
 
 type DiscoveryResponse = { salons?: Salon[]; error?: string };
-
-function distanceKm(fromLat: number, fromLng: number, toLat: number, toLng: number) {
-  const radians = (value: number) => value * Math.PI / 180;
-  const dLat = radians(toLat - fromLat);
-  const dLng = radians(toLng - fromLng);
-  const a = Math.sin(dLat / 2) ** 2 + Math.cos(radians(fromLat)) * Math.cos(radians(toLat)) * Math.sin(dLng / 2) ** 2;
-  return 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
 
 export function SalonDiscovery() {
   const [salons, setSalons] = useState<Salon[]>([]);
