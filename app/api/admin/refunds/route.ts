@@ -5,6 +5,7 @@ import { auth } from "@/lib/auth";
 import { getDb } from "@/lib/db/client";
 import { createStripeRefund } from "@/lib/refunds";
 import { findActiveSalonBySlug, requireSalonMembership } from "@/lib/tenancy";
+import { captureOperationalError } from "@/lib/monitoring";
 const schema = z.object({ salonSlug: z.string().min(3).max(80), paymentId: z.string().regex(/^[a-f\d]{24}$/i), amount: z.number().int().positive().optional(), reason: z.string().trim().max(500).optional() }).strict();
 async function authorize(request: Request) {
   const slug = new URL(request.url).searchParams.get("salonSlug");
@@ -31,6 +32,7 @@ export async function POST(request: Request) {
     const result = await createStripeRefund({ salonId: s.salonId, paymentId: new ObjectId(parsed.data.paymentId), amount: parsed.data.amount, reason: parsed.data.reason, actorId: s.actorId });
     return NextResponse.json({ success: true, ...result }, { status: 201 });
   } catch (error) {
+    await captureOperationalError({ error, route: "/api/admin/refunds", method: "POST" });
     const message = error instanceof Error ? error.message : "Refund failed.";
     return NextResponse.json({ error: message }, { status: 400 });
   }
