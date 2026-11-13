@@ -49,7 +49,7 @@ export async function POST(request: Request) {
     if (data.kind === "shift") {
       await db.collection("staffShifts").updateOne({ salonId: s.salonId, staffId, dayOfWeek: data.dayOfWeek }, { $set: { ...data, salonId: s.salonId, staffId, updatedAt: now }, $setOnInsert: { createdAt: now } }, { upsert: true });
     } else {
-      const { kind, ...leave } = data;
+      const leave = { date: data.date, type: data.type, startTime: data.startTime, endTime: data.endTime, reason: data.reason };
       await db.collection("staffLeave").insertOne({ ...leave, salonId: s.salonId, staffId, status: "ACTIVE", createdAt: now, updatedAt: now });
     }
     return NextResponse.json({ success: true }, { status: 201 });
