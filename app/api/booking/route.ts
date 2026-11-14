@@ -28,8 +28,8 @@ export async function GET(request: Request) {
     }
     const db = await getDb();
     const [services, staff, salon] = await Promise.all([
-      db.collection('services').find({ salonId, active: true }).project({ name: 1, description: 1, price: 1, durationMinutes: 1, category: 1 }).sort({ sortOrder: 1, name: 1 }).limit(500).toArray(),
-      db.collection('staff').find({ salonId, active: true }).project({ name: 1, title: 1, specialties: 1 }).sort({ name: 1 }).toArray(),
+      db.collection('services').find({ salonId, active: { $ne: false } }).project({ name: 1, description: 1, price: 1, durationMinutes: 1, category: 1 }).sort({ sortOrder: 1, name: 1 }).limit(500).toArray(),
+      db.collection('staff').find({ salonId, active: { $ne: false } }).project({ name: 1, title: 1, specialties: 1 }).sort({ name: 1 }).toArray(),
       salonSlug ? db.collection('salons').findOne({ salonId, status: 'ACTIVE' }, { projection: { name: 1, phone: 1, address: 1 } }) : db.collection('settings').findOne({ _id: 'salon' as never }, { projection: { name: 1, phone: 1, address: 1 } }),
     ]);
     return NextResponse.json({ services, staff, salon: salon ? { name: salon.name || 'Salon', phone: salon.phone || '', address: salon.address || '' } : { name: 'Salon', phone: '', address: '' } }, { headers: { 'Cache-Control': 'no-store, max-age=0' } });
@@ -61,7 +61,7 @@ export async function POST(request: Request) {
     if (input.date < getDhakaDate()) return NextResponse.json({ error: 'Please choose a future date.' }, { status: 400 });
     const db = await getDb();
     await ensureIndexes();
-    const services = await db.collection('services').find({ _id: { $in: uniqueServiceIds.map((id) => new ObjectId(id)) }, salonId, active: true }).toArray();
+    const services = await db.collection('services').find({ _id: { $in: uniqueServiceIds.map((id) => new ObjectId(id)) }, salonId, active: { $ne: false } }).toArray();
     if (services.length !== uniqueServiceIds.length) return NextResponse.json({ error: 'One or more selected services are no longer available.' }, { status: 404 });
     const serviceById = new Map(services.map((service) => [String(service._id), service]));
     const orderedServices = uniqueServiceIds.map((id) => serviceById.get(id)!);
@@ -70,7 +70,7 @@ export async function POST(request: Request) {
     const totalPrice = orderedServices.reduce((sum, service) => sum + Number(service.price || 0), 0);
     const totalDuration = orderedServices.reduce((sum, service) => sum + Number(service.durationMinutes || 30), 0);
     if (!Number.isFinite(totalPrice) || totalPrice < 0 || !Number.isFinite(totalDuration) || totalDuration < 1 || totalDuration > 600) return NextResponse.json({ error: 'The selected services have invalid pricing or duration.' }, { status: 400 });
-    const staffQuery: Record<string, unknown> = { salonId, active: true };
+    const staffQuery: Record<string, unknown> = { salonId, active: { $ne: false } };
     if (input.staffId && input.staffId !== 'any') {
       if (!ObjectId.isValid(input.staffId)) return NextResponse.json({ error: 'Invalid barber selection.' }, { status: 400 });
       staffQuery._id = new ObjectId(input.staffId);
