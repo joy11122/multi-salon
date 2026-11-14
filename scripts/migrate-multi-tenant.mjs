@@ -4,8 +4,10 @@ const uri = process.env.MONGODB_URI;
 if (!uri) throw new Error('Set MONGODB_URI before running the multi-tenant migration.');
 
 const apply = process.argv.includes('--apply');
-const salonId = process.env.SALON_ID || 'the-gentlemens-club-khulna';
-const salonSlug = (process.env.SALON_SLUG || 'the-gentlemens-club-khulna')
+const assignUnscopedRecords = process.argv.includes('--assign-unscoped-records');
+const requestedSalonSlug = String(process.env.SALON_SLUG || '').trim().toLowerCase();
+const configuredSalonId = process.env.SALON_ID || '';
+const salonSlug = (requestedSalonSlug || 'the-gentlemens-club-khulna')
   .toLowerCase()
   .trim()
   .replace(/['’]/g, '')
@@ -22,13 +24,37 @@ await client.connect();
 
 try {
   const db = client.db(process.env.MONGODB_DB_NAME || undefined);
+  let salonId = configuredSalonId || 'the-gentlemens-club-khulna';
+  let targetSalon = null;
+  if (requestedSalonSlug) {
+    targetSalon = await db.collection('salons').findOne({ slug: salonSlug, status: 'ACTIVE' });
+    if (!targetSalon || !targetSalon.salonId) {
+      throw new Error(`No active salon found for SALON_SLUG="${salonSlug}". Refusing to create a replacement tenant.`);
+    }
+    if (configuredSalonId && String(targetSalon.salonId) !== configuredSalonId) {
+      throw new Error('SALON_ID does not match the salon resolved from SALON_SLUG.');
+    }
+    salonId = String(targetSalon.salonId);
+  }
   const settings = await db.collection('settings').findOne({ _id: 'salon' });
-  const name = process.env.SALON_NAME || settings?.name || "The Gentlemen's Club";
+  const tenantSettings = targetSalon
+    ? await db.collection('salonSettings').findOne({ salonId })
+    : null;
+  const name = process.env.SALON_NAME || targetSalon?.name || settings?.name || "The Gentlemen's Club";
   const now = new Date();
 
   const missingCounts = {};
   for (const collectionName of collections) {
     missingCounts[collectionName] = await db.collection(collectionName).countDocuments({ salonId: { $exists: false } });
+  }
+
+  const catalogBySalonId = {};
+  for (const collectionName of ['services', 'staff']) {
+    catalogBySalonId[collectionName] = await db.collection(collectionName).aggregate([
+      { $group: { _id: '$salonId', total: { $sum: 1 }, active: { $sum: { $cond: ['$active', 1, 0] } } } },
+      { $sort: { total: -1 } },
+      { $limit: 100 },
+    ]).toArray();
   }
 
   const duplicateStaffEmails = await db.collection('staff').aggregate([
@@ -49,6 +75,10 @@ try {
     mode: apply ? 'APPLY' : 'DRY RUN',
     salon: { salonId, slug: salonSlug, name },
     documentsMissingSalonId: missingCounts,
+    existingCatalogRecordsBySalonId: catalogBySalonId,
+    targetSalonResolvedFromSlug: targetSalon ? { salonId, slug: salonSlug, name: targetSalon.name } : null,
+    unscopedRecordAssignmentEnabled: assignUnscopedRecords,
+    note: 'Existing records with a non-empty salonId are never reassigned. Unscoped records are assigned only when --assign-unscoped-records is explicitly supplied.',
     duplicateCustomerPhones: duplicatePhones,
     duplicateStaffEmails: duplicateStaffEmails,
     warning: 'Back up the production database before applying this migration.',
@@ -58,6 +88,9 @@ try {
     console.log('Dry run only. Re-run with --apply after reviewing the plan and taking a database backup.');
     process.exitCode = 0;
   } else {
+    if (Object.values(missingCounts).some((count) => count > 0) && !assignUnscopedRecords) {
+      throw new Error('Unscoped records were found. Review the dry-run report, then rerun with --assign-unscoped-records only if all unscoped records belong to this salon.');
+    }
     if (duplicatePhones.length) throw new Error('Duplicate customer phone numbers exist in the legacy salon. Resolve them before creating the tenant-scoped unique index.');
     if (duplicateStaffEmails.length) throw new Error('Duplicate staff email addresses exist in the legacy salon. Resolve them case-insensitively before creating the tenant-scoped unique index.');
 
@@ -77,9 +110,9 @@ try {
         $set: {
           slug: salonSlug,
           name,
-          phone: settings?.phone || '',
-          address: settings?.address || '',
-          timezone: settings?.timezone || 'Asia/Dhaka',
+          phone: targetSalon?.phone ?? settings?.phone ?? '',
+          address: targetSalon?.address ?? settings?.address ?? '',
+          timezone: targetSalon?.timezone || tenantSettings?.timezone || settings?.timezone || 'Asia/Dhaka',
           status: 'ACTIVE',
           updatedAt: now,
         },
@@ -88,11 +121,11 @@ try {
       { upsert: true },
     );
 
-    const openingHours = settings?.openingHours || Array.from({ length: 7 }, () => ({ open: '10:00', close: '20:00', closed: false }));
+    const openingHours = tenantSettings?.openingHours || settings?.openingHours || Array.from({ length: 7 }, () => ({ open: '10:00', close: '20:00', closed: false }));
     await db.collection('salonSettings').updateOne(
       { salonId },
       {
-        $set: { openingHours, timezone: settings?.timezone || 'Asia/Dhaka', updatedAt: now },
+        $set: { openingHours, timezone: targetSalon?.timezone || tenantSettings?.timezone || settings?.timezone || 'Asia/Dhaka', updatedAt: now },
         $setOnInsert: { salonId, createdAt: now },
       },
       { upsert: true },
