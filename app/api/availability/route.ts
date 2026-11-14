@@ -27,11 +27,11 @@ export async function GET(request: Request) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || Number.isNaN(parsedDate.getTime()) || parsedDate.toISOString().slice(0, 10) !== date || !serviceIds.length || serviceIds.length > 10 || serviceIds.some((id) => !ObjectId.isValid(id))) return NextResponse.json({ error: 'A valid date and service selection are required.' }, { status: 400 });
     if (date < getDhakaDate()) return NextResponse.json({ slots: [] });
     const db = await getDb();
-    const services = await db.collection('services').find({ _id: { $in: serviceIds.map((id) => new ObjectId(id)) }, salonId, active: true }).toArray();
+    const services = await db.collection('services').find({ _id: { $in: serviceIds.map((id) => new ObjectId(id)) }, salonId, active: { $ne: false } }).toArray();
     if (services.length !== serviceIds.length) return NextResponse.json({ error: 'One or more services were not found.' }, { status: 404 });
     const totalDuration = services.reduce((sum, service) => sum + Number(service.durationMinutes || 30), 0);
     if (!Number.isFinite(totalDuration) || totalDuration < 1 || totalDuration > 600) return NextResponse.json({ error: 'Selected service duration is invalid.' }, { status: 400 });
-    const staffFilter: Record<string, unknown> = { salonId, active: true };
+    const staffFilter: Record<string, unknown> = { salonId, active: { $ne: false } };
     if (staffId !== 'any') { if (!ObjectId.isValid(staffId)) return NextResponse.json({ error: 'Invalid barber.' }, { status: 400 }); staffFilter._id = new ObjectId(staffId); }
     const staff = await db.collection('staff').find(staffFilter).toArray();
     const settings = salonId === SALON_ID
