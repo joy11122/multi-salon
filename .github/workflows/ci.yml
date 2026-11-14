@@ -41,7 +41,7 @@ jobs:
         run: npm install --no-audit --no-fund
 
       - name: Validate database scripts
-        run: node --check scripts/seed.mjs && node --check scripts/migrate-multi-tenant.mjs
+        run: node --check scripts/seed.mjs && node --check scripts/migrate-multi-tenant.mjs && node --check scripts/audit-booking-catalog.mjs
 
       - name: TypeScript
         run: npm run typecheck
