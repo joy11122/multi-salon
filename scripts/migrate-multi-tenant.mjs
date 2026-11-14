@@ -125,7 +125,7 @@ try {
     await db.collection('salonSettings').updateOne(
       { salonId },
       {
-        $set: { openingHours, timezone: settings?.timezone || 'Asia/Dhaka', updatedAt: now },
+        $set: { openingHours, timezone: targetSalon?.timezone || tenantSettings?.timezone || settings?.timezone || 'Asia/Dhaka', updatedAt: now },
         $setOnInsert: { salonId, createdAt: now },
       },
       { upsert: true },
