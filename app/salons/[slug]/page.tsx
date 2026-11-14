@@ -10,8 +10,10 @@ export const dynamic = 'force-dynamic';
 const DEFAULT_HERO_IMAGE =
   'https://images.unsplash.com/photo-1503951914875-452162b0f3f1?auto=format&fit=crop&w=2200&q=85';
 
-function getSalonHeroImage(salon: Record<string, unknown>) {
-  const candidates = [salon.coverImage, salon.bannerImage, salon.heroImage];
+function getSalonHeroImage(salon: unknown) {
+  if (!salon || typeof salon !== 'object') return DEFAULT_HERO_IMAGE;
+  const record = salon as Record<string, unknown>;
+  const candidates = [record.coverImage, record.bannerImage, record.heroImage];
   const image = candidates.find(
     (candidate): candidate is string =>
       typeof candidate === 'string' && candidate.startsWith('https://'),
@@ -32,7 +34,7 @@ export default async function PublicSalonPage({ params }: { params: { slug: stri
     .toArray();
 
   const salonName = String(salon.name || 'Your salon');
-  const heroImage = getSalonHeroImage(salon as Record<string, unknown>);
+  const heroImage = getSalonHeroImage(salon);
   const address = typeof salon.address === 'string' ? salon.address : '';
   const phone = typeof salon.phone === 'string' ? salon.phone : '';
   const bookingHref = '/salons/' + encodeURIComponent(params.slug) + '/booking';
