@@ -94,14 +94,44 @@ export function SettingsClient({ salonSlug }: { salonSlug?: string } = {}) {
         )}
         <div className="sm:col-span-2">
           <p className="eyebrow mb-4">WEEKLY OPENING HOURS · BANGLADESH TIME</p>
-          {days.map((day, index) => (
-            <div key={day} className="grid grid-cols-[1fr_1fr_1fr_auto] items-center gap-2 border-t border-white/10 py-3 text-xs">
-              <span>{day}</span>
-              <input aria-label={`${day} opening time`} type="time" disabled={hours[index].closed} value={hours[index].open} onChange={(event) => setHours(hours.map((item, itemIndex) => itemIndex === index ? { ...item, open: event.target.value } : item))} className="bg-[#0b0b0b] p-2"/>
-              <input aria-label={`${day} closing time`} type="time" disabled={hours[index].closed} value={hours[index].close} onChange={(event) => setHours(hours.map((item, itemIndex) => itemIndex === index ? { ...item, close: event.target.value } : item))} className="bg-[#0b0b0b] p-2"/>
-              <label className="flex items-center gap-1"><input type="checkbox" checked={hours[index].closed} onChange={(event) => setHours(hours.map((item, itemIndex) => itemIndex === index ? { ...item, closed: event.target.checked } : item))}/>Closed</label>
-            </div>
-          ))}
+          <div className="space-y-1">
+            {days.map((day, index) => (
+              <div key={day} className="grid grid-cols-2 gap-x-3 gap-y-3 border-t border-white/10 py-4 text-xs sm:grid-cols-[minmax(7rem,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-center sm:gap-3 sm:py-3">
+                <span className="min-w-0 self-center font-medium text-[#f5f1e8]">{day}</span>
+                <label className="col-start-2 row-start-1 flex min-h-10 items-center justify-end gap-2 whitespace-nowrap text-[#c6a15b] sm:col-start-4 sm:row-start-1">
+                  <input
+                    type="checkbox"
+                    checked={hours[index].closed}
+                    onChange={(event) => setHours(hours.map((item, itemIndex) => itemIndex === index ? { ...item, closed: event.target.checked } : item))}
+                    className="h-4 w-4 accent-[#c6a15b]"
+                  />
+                  Closed
+                </label>
+                <label className="col-start-1 row-start-2 min-w-0 text-[10px] tracking-wider text-[#999] sm:col-start-2 sm:row-start-1">
+                  OPENS
+                  <input
+                    aria-label={`${day} opening time`}
+                    type="time"
+                    disabled={hours[index].closed}
+                    value={hours[index].open}
+                    onChange={(event) => setHours(hours.map((item, itemIndex) => itemIndex === index ? { ...item, open: event.target.value } : item))}
+                    className="mt-1 block min-h-11 w-full min-w-0 rounded-sm border border-white/10 bg-[#0b0b0b] px-2 text-sm text-white [color-scheme:dark] disabled:cursor-not-allowed disabled:opacity-40"
+                  />
+                </label>
+                <label className="col-start-2 row-start-2 min-w-0 text-[10px] tracking-wider text-[#999] sm:col-start-3 sm:row-start-1">
+                  CLOSES
+                  <input
+                    aria-label={`${day} closing time`}
+                    type="time"
+                    disabled={hours[index].closed}
+                    value={hours[index].close}
+                    onChange={(event) => setHours(hours.map((item, itemIndex) => itemIndex === index ? { ...item, close: event.target.value } : item))}
+                    className="mt-1 block min-h-11 w-full min-w-0 rounded-sm border border-white/10 bg-[#0b0b0b] px-2 text-sm text-white [color-scheme:dark] disabled:cursor-not-allowed disabled:opacity-40"
+                  />
+                </label>
+              </div>
+            ))}
+          </div>
         </div>
         <button disabled={busy} className="gold-button px-6 py-4 text-[10px] tracking-widest sm:col-span-2">{busy ? 'SAVING…' : 'SAVE SETTINGS'}</button>
         {message && <p role="status" className="text-sm text-[#c6a15b] sm:col-span-2">{message}</p>}
