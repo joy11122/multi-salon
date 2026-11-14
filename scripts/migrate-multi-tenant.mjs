@@ -4,6 +4,7 @@ const uri = process.env.MONGODB_URI;
 if (!uri) throw new Error('Set MONGODB_URI before running the multi-tenant migration.');
 
 const apply = process.argv.includes('--apply');
+const assignUnscopedRecords = process.argv.includes('--assign-unscoped-records');
 const requestedSalonSlug = String(process.env.SALON_SLUG || '').trim().toLowerCase();
 const configuredSalonId = process.env.SALON_ID || '';
 const salonSlug = (requestedSalonSlug || 'the-gentlemens-club-khulna')
@@ -36,7 +37,10 @@ try {
     salonId = String(targetSalon.salonId);
   }
   const settings = await db.collection('settings').findOne({ _id: 'salon' });
-  const name = process.env.SALON_NAME || settings?.name || "The Gentlemen's Club";
+  const tenantSettings = targetSalon
+    ? await db.collection('salonSettings').findOne({ salonId })
+    : null;
+  const name = process.env.SALON_NAME || targetSalon?.name || settings?.name || "The Gentlemen's Club";
   const now = new Date();
 
   const missingCounts = {};
@@ -73,7 +77,8 @@ try {
     documentsMissingSalonId: missingCounts,
     existingCatalogRecordsBySalonId: catalogBySalonId,
     targetSalonResolvedFromSlug: targetSalon ? { salonId, slug: salonSlug, name: targetSalon.name } : null,
-    note: 'Existing records with a non-empty salonId are never reassigned by this migration.',
+    unscopedRecordAssignmentEnabled: assignUnscopedRecords,
+    note: 'Existing records with a non-empty salonId are never reassigned. Unscoped records are assigned only when --assign-unscoped-records is explicitly supplied.',
     duplicateCustomerPhones: duplicatePhones,
     duplicateStaffEmails: duplicateStaffEmails,
     warning: 'Back up the production database before applying this migration.',
@@ -83,6 +88,9 @@ try {
     console.log('Dry run only. Re-run with --apply after reviewing the plan and taking a database backup.');
     process.exitCode = 0;
   } else {
+    if (Object.values(missingCounts).some((count) => count > 0) && !assignUnscopedRecords) {
+      throw new Error('Unscoped records were found. Review the dry-run report, then rerun with --assign-unscoped-records only if all unscoped records belong to this salon.');
+    }
     if (duplicatePhones.length) throw new Error('Duplicate customer phone numbers exist in the legacy salon. Resolve them before creating the tenant-scoped unique index.');
     if (duplicateStaffEmails.length) throw new Error('Duplicate staff email addresses exist in the legacy salon. Resolve them case-insensitively before creating the tenant-scoped unique index.');
 
@@ -102,9 +110,9 @@ try {
         $set: {
           slug: salonSlug,
           name,
-          phone: settings?.phone || '',
-          address: settings?.address || '',
-          timezone: settings?.timezone || 'Asia/Dhaka',
+          phone: targetSalon?.phone ?? settings?.phone ?? '',
+          address: targetSalon?.address ?? settings?.address ?? '',
+          timezone: targetSalon?.timezone || tenantSettings?.timezone || settings?.timezone || 'Asia/Dhaka',
           status: 'ACTIVE',
           updatedAt: now,
         },
@@ -113,7 +121,7 @@ try {
       { upsert: true },
     );
 
-    const openingHours = settings?.openingHours || Array.from({ length: 7 }, () => ({ open: '10:00', close: '20:00', closed: false }));
+    const openingHours = tenantSettings?.openingHours || settings?.openingHours || Array.from({ length: 7 }, () => ({ open: '10:00', close: '20:00', closed: false }));
     await db.collection('salonSettings').updateOne(
       { salonId },
       {
