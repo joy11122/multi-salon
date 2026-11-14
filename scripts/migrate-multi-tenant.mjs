@@ -4,8 +4,9 @@ const uri = process.env.MONGODB_URI;
 if (!uri) throw new Error('Set MONGODB_URI before running the multi-tenant migration.');
 
 const apply = process.argv.includes('--apply');
-const salonId = process.env.SALON_ID || 'the-gentlemens-club-khulna';
-const salonSlug = (process.env.SALON_SLUG || 'the-gentlemens-club-khulna')
+const requestedSalonSlug = String(process.env.SALON_SLUG || '').trim().toLowerCase();
+const configuredSalonId = process.env.SALON_ID || '';
+const salonSlug = (requestedSalonSlug || 'the-gentlemens-club-khulna')
   .toLowerCase()
   .trim()
   .replace(/['’]/g, '')
@@ -22,6 +23,18 @@ await client.connect();
 
 try {
   const db = client.db(process.env.MONGODB_DB_NAME || undefined);
+  let salonId = configuredSalonId || 'the-gentlemens-club-khulna';
+  let targetSalon = null;
+  if (requestedSalonSlug) {
+    targetSalon = await db.collection('salons').findOne({ slug: salonSlug, status: 'ACTIVE' });
+    if (!targetSalon || !targetSalon.salonId) {
+      throw new Error(`No active salon found for SALON_SLUG="${salonSlug}". Refusing to create a replacement tenant.`);
+    }
+    if (configuredSalonId && String(targetSalon.salonId) !== configuredSalonId) {
+      throw new Error('SALON_ID does not match the salon resolved from SALON_SLUG.');
+    }
+    salonId = String(targetSalon.salonId);
+  }
   const settings = await db.collection('settings').findOne({ _id: 'salon' });
   const name = process.env.SALON_NAME || settings?.name || "The Gentlemen's Club";
   const now = new Date();
@@ -29,6 +42,15 @@ try {
   const missingCounts = {};
   for (const collectionName of collections) {
     missingCounts[collectionName] = await db.collection(collectionName).countDocuments({ salonId: { $exists: false } });
+  }
+
+  const catalogBySalonId = {};
+  for (const collectionName of ['services', 'staff']) {
+    catalogBySalonId[collectionName] = await db.collection(collectionName).aggregate([
+      { $group: { _id: '$salonId', total: { $sum: 1 }, active: { $sum: { $cond: ['$active', 1, 0] } } } },
+      { $sort: { total: -1 } },
+      { $limit: 100 },
+    ]).toArray();
   }
 
   const duplicateStaffEmails = await db.collection('staff').aggregate([
@@ -49,6 +71,9 @@ try {
     mode: apply ? 'APPLY' : 'DRY RUN',
     salon: { salonId, slug: salonSlug, name },
     documentsMissingSalonId: missingCounts,
+    existingCatalogRecordsBySalonId: catalogBySalonId,
+    targetSalonResolvedFromSlug: targetSalon ? { salonId, slug: salonSlug, name: targetSalon.name } : null,
+    note: 'Existing records with a non-empty salonId are never reassigned by this migration.',
     duplicateCustomerPhones: duplicatePhones,
     duplicateStaffEmails: duplicateStaffEmails,
     warning: 'Back up the production database before applying this migration.',
