@@ -16,8 +16,8 @@ type Appointment = {
 };
 
 function getContactLinks(appointment: Appointment) {
-  const dialPhone = appointment.phone.replace(/[^\\d+]/g, '');
-  const digits = appointment.phone.replace(/\\D/g, '');
+  const dialPhone = appointment.phone.replace(/[^\d+]/g, '');
+  const digits = appointment.phone.replace(/\D/g, '');
   const whatsappPhone = appointment.phone.trim().startsWith('+')
     ? digits
     : digits.startsWith('00')
