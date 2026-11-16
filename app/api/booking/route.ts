@@ -9,6 +9,7 @@ import { findActiveSalonBySlug } from '@/lib/tenancy';
 import { isStaffScheduled } from '@/lib/shifts';
 import { sendBookingNotifications } from '@/lib/notifications';
 import { captureOperationalError } from '@/lib/monitoring';
+import { expirePendingBookings, getPendingExpiryAt, getPendingExpiryMinutes } from '@/lib/booking-expiration';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -78,11 +79,13 @@ export async function POST(request: Request) {
     const settings = salonId === SALON_ID
       ? await db.collection('settings').findOne({ _id: 'salon' as never })
       : await db.collection('salonSettings').findOne({ salonId });
+    const pendingBookingExpiryMinutes = getPendingExpiryMinutes(settings?.pendingBookingExpiryMinutes);
     const weekday = new Date(`${input.date}T06:00:00Z`).getUTCDay();
     const hours = settings?.openingHours?.[weekday] || { open: '10:00', close: '20:00', closed: false };
     if (hours.closed) return NextResponse.json({ error: 'The salon is closed on this day.' }, { status: 409 });
     const startAt = toDhakaDateTime(input.date, input.time);
     const endAt = addMinutes(startAt, totalDuration);
+    await expirePendingBookings({ salonId, staffIds: staff.map((barber) => barber._id), overlap: { startAt, endAt }, limit: 100 });
     if (startAt <= new Date() || startAt < toDhakaDateTime(input.date, hours.open) || endAt > toDhakaDateTime(input.date, hours.close)) return NextResponse.json({ error: 'That time is outside the available booking hours.' }, { status: 400 });
     const client = await getClient();
     session = client.startSession();
@@ -92,7 +95,7 @@ export async function POST(request: Request) {
       if (!(await isStaffScheduled({ salonId, staffId: barber._id, date: input.date, startAt, endAt }))) continue;
       try {
         await session.withTransaction(async () => {
-          const conflicting = await db.collection('appointments').findOne({ salonId, staffId: barber._id, status: { $nin: ['CANCELLED', 'REJECTED'] }, startAt: { $lt: endAt }, endAt: { $gt: startAt } }, { session, projection: { _id: 1 } });
+          const conflicting = await db.collection('appointments').findOne({ salonId, staffId: barber._id, status: { $nin: ['CANCELLED', 'REJECTED', 'EXPIRED'] }, startAt: { $lt: endAt }, endAt: { $gt: startAt } }, { session, projection: { _id: 1 } });
           if (conflicting) throw Object.assign(new Error('Selected barber is no longer available.'), { code: 'SLOT_BUSY' });
           const phone = input.phone.replace(/^\+?88/, '0');
           const customer = await db.collection('customers').findOneAndUpdate(
@@ -103,12 +106,13 @@ export async function POST(request: Request) {
           const barberSlots: string[] = [];
           for (let minute = Math.floor(startAt.getTime() / 900000) * 900000; minute < endAt.getTime(); minute += 900000) barberSlots.push(new Date(minute).toISOString());
           await db.collection('slotLocks').insertMany(barberSlots.map((slotKey) => ({ salonId, staffId: barber._id, slotKey, appointmentRef: bookingRef, expiresAt: addMinutes(endAt, 24 * 60), createdAt: new Date() })), { session, ordered: true });
+          const createdAt = new Date();
           const appointment = {
             salonId, bookingRef, customerId: customer?._id, customerName: input.customerName, phone,
             email: bookingEmail, serviceId: orderedServices[0]._id, serviceIds: orderedServices.map((service) => service._id),
             serviceName, serviceNames, staffId: barber._id, staffName: barber.name, staffEmail: barber.email || '',
             price: totalPrice, durationMinutes: totalDuration, startAt, endAt,
-            notes: input.notes, notificationConsent: input.notificationConsent, status: 'PENDING', paymentStatus: 'UNPAID', source: 'WEBSITE', createdAt: new Date(), updatedAt: new Date(),
+            notes: input.notes, notificationConsent: input.notificationConsent, status: 'PENDING', pendingExpiresAt: getPendingExpiryAt(createdAt, pendingBookingExpiryMinutes), paymentStatus: 'UNPAID', source: 'WEBSITE', createdAt, updatedAt: createdAt,
           };
           const result = await db.collection('appointments').insertOne(appointment, { session });
           created = { ...appointment, _id: result.insertedId };
