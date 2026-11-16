@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { createBookingRequestHash, isValidIdempotencyKey } from '../lib/booking-idempotency';
+import { createBookingIdempotencyScope, createBookingRequestHash, isValidIdempotencyKey } from '../lib/booking-idempotency';
 
 const input = {
   salonId: 'salon-joy',
-  accountEmail: 'user@example.com',
+  identity: createBookingIdempotencyScope('user@example.com'),
   input: {
     serviceIds: ['65a000000000000000000001'],
     staffId: 'any',
@@ -24,6 +24,11 @@ describe('booking idempotency', () => {
     expect(isValidIdempotencyKey(null)).toBe(false);
   });
 
+  it('hashes identity scopes without retaining raw email or phone values', () => {
+    expect(createBookingIdempotencyScope(' USER@example.com ')).toBe(createBookingIdempotencyScope('user@example.com'));
+    expect(createBookingIdempotencyScope('user@example.com')).not.toContain('user@example.com');
+  });
+
   it('creates the same hash for the same canonical request', () => {
     expect(createBookingRequestHash(input)).toBe(createBookingRequestHash(input));
   });
@@ -31,7 +36,7 @@ describe('booking idempotency', () => {
   it('normalizes phone, email and whitespace before hashing', () => {
     const normalized = {
       ...input,
-      accountEmail: ' USER@example.com ',
+      identity: createBookingIdempotencyScope(' USER@example.com '),
       input: { ...input.input, phone: '01712 345678', customerName: ' Rahim Uddin ' },
     };
     expect(createBookingRequestHash(input)).toBe(createBookingRequestHash(normalized));
@@ -53,6 +58,6 @@ describe('booking idempotency', () => {
 
   it('scopes the hash to the salon and request identity', () => {
     expect(createBookingRequestHash(input)).not.toBe(createBookingRequestHash({ ...input, salonId: 'another-salon' }));
-    expect(createBookingRequestHash(input)).not.toBe(createBookingRequestHash({ ...input, accountEmail: 'other@example.com' }));
+    expect(createBookingRequestHash(input)).not.toBe(createBookingRequestHash({ ...input, identity: createBookingIdempotencyScope('other@example.com') }));
   });
 });
