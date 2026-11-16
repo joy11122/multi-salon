@@ -10,7 +10,7 @@ import { isStaffScheduled } from '@/lib/shifts';
 import { sendBookingNotifications } from '@/lib/notifications';
 import { captureOperationalError } from '@/lib/monitoring';
 import { expirePendingBookings, getPendingExpiryAt, getPendingExpiryMinutes } from '@/lib/booking-expiration';
-import { createBookingRequestHash, isValidIdempotencyKey } from '@/lib/booking-idempotency';
+import { createBookingIdempotencyScope, createBookingRequestHash, isValidIdempotencyKey } from '@/lib/booking-idempotency';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -60,8 +60,9 @@ export async function POST(request: Request) {
     const userSession = await auth();
     const accountEmail = userSession?.user?.email ? String(userSession.user.email).trim().toLowerCase() : '';
     const bookingEmail = accountEmail || String(input.email || '').trim().toLowerCase();
-    const idempotencyScope = accountEmail || bookingEmail || input.phone.replace(/[\s-]/g, '');
-    const requestHash = createBookingRequestHash({ salonId, accountEmail: idempotencyScope, input });
+    const identity = accountEmail || bookingEmail || input.phone.replace(/[\s-]/g, '');
+    const idempotencyScope = createBookingIdempotencyScope(identity);
+    const requestHash = createBookingRequestHash({ salonId, identity: idempotencyScope, input });
     idempotencyContext = { salonId, scope: idempotencyScope, key: idempotencyKey, requestHash };
     const db = await getDb();
     const priorRequest = await db.collection('bookingIdempotency').findOne({ salonId, scope: idempotencyScope, key: idempotencyKey });
