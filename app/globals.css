@@ -2,7 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 :root{color-scheme:dark;--bg:#0b0b0b;--panel:#171717;--gold:#c6a15b;--cream:#f5f1e8}
-*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:var(--bg);color:var(--cream);font-family:Arial,Helvetica,sans-serif}a{color:inherit;text-decoration:none}button{font:inherit}.serif{font-family:Georgia,'Times New Roman',serif}.gold{color:var(--gold)}.eyebrow{color:var(--gold);font-size:10px;letter-spacing:.28em;text-transform:uppercase}.section-pad{padding:100px max(6vw,24px)}.outline-gold{border:1px solid rgba(198,161,91,.65);transition:background .25s,color .25s}.outline-gold:hover{background:var(--gold);color:#0b0b0b}.gold-button{background:var(--gold);color:#0b0b0b;transition:transform .25s,background .25s}.gold-button:hover{background:#d8b875;transform:translateY(-2px)}.image-overlay{background:linear-gradient(90deg,rgba(0,0,0,.86),rgba(0,0,0,.35) 55%,rgba(0,0,0,.08))}.nav-link{font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:#c8c2b7;transition:color .2s}.nav-link:hover{color:var(--gold)}.service-card{background:#151515;border:1px solid rgba(255,255,255,.08);transition:border-color .25s,transform .25s}.service-card:hover{border-color:rgba(198,161,91,.55);transform:translateY(-4px)}.muted{color:#a5a098}.rule{height:1px;background:rgba(255,255,255,.1)}
+*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:var(--bg);color:var(--cream);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}a{color:inherit;text-decoration:none}button{font:inherit}.serif{font-family:Georgia,'Times New Roman',serif}.gold{color:var(--gold)}.eyebrow{color:var(--gold);font-size:10px;letter-spacing:.28em;text-transform:uppercase}.section-pad{padding:100px max(6vw,24px)}.outline-gold{border:1px solid rgba(198,161,91,.65);transition:background .25s,color .25s}.outline-gold:hover{background:var(--gold);color:#0b0b0b}.gold-button{background:var(--gold);color:#0b0b0b;transition:transform .25s,background .25s}.gold-button:hover{background:#d8b875;transform:translateY(-2px)}.image-overlay{background:linear-gradient(90deg,rgba(0,0,0,.86),rgba(0,0,0,.35) 55%,rgba(0,0,0,.08))}.nav-link{font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:#c8c2b7;transition:color .2s}.nav-link:hover{color:var(--gold)}.service-card{background:#151515;border:1px solid rgba(255,255,255,.08);transition:border-color .25s,transform .25s}.service-card:hover{border-color:rgba(198,161,91,.55);transform:translateY(-4px)}.muted{color:#a5a098}.rule{height:1px;background:rgba(255,255,255,.1)}
 :focus-visible{outline:2px solid var(--gold);outline-offset:3px}::selection{background:rgba(198,161,91,.35);color:#fff}input,textarea,select{color-scheme:dark}button:disabled{cursor:not-allowed}html,body{min-height:100%}
 
 @media print{body *{visibility:hidden!important}.booking-print-sheet,.booking-print-sheet *{visibility:visible!important}.booking-print-sheet{position:absolute!important;inset:0!important;width:100%!important;max-width:none!important;margin:0!important;padding:24px!important;border:0!important;background:#fff!important;color:#111!important;box-shadow:none!important}.booking-print-sheet .eyebrow{color:#805b1c!important}.booking-print-sheet .text-\[\#aaa\],.booking-print-sheet .text-\[\#999\]{color:#555!important}.booking-print-sheet .text-\[\#c6a15b\]{color:#805b1c!important}.booking-print-sheet .border-white\/10{border-color:#ddd!important}.booking-screen-actions{display:none!important}@page{size:A4;margin:14mm}}
@@ -27,3 +27,92 @@
 .services-book-button:hover,.barbers-book-button:hover{background:#d8b875;filter:brightness(1.04);transform:translateY(-1px);box-shadow:0 12px 26px rgba(198,161,91,.20)}
 .services-page input:focus-visible,.services-page select:focus-visible,.services-page button:focus-visible,.services-page a:focus-visible,.barbers-page input:focus-visible,.barbers-page select:focus-visible,.barbers-page button:focus-visible,.barbers-page a:focus-visible{outline:2px solid var(--gold);outline-offset:3px}
 @media(prefers-reduced-motion:reduce){.premium-service-card,.barber-profile-card,.services-book-button,.barbers-book-button{transition:none}.premium-service-card:hover,.barber-profile-card:hover,.services-book-button:hover,.barbers-book-button:hover{transform:none}}
+
+
+/* Shared workspace polish — preserves the established ink, gold and cream palette. */
+:root {
+  color-scheme: dark;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  --surface-raised: #1b1b1b;
+  --border-subtle: rgba(255,255,255,.09);
+  --border-gold: rgba(198,161,91,.28);
+  --text-muted: #a5a098;
+}
+body {
+  font-feature-settings: "kern";
+  -webkit-tap-highlight-color: transparent;
+}
+button, a, input, select, textarea {
+  -webkit-tap-highlight-color: transparent;
+}
+a, button {
+  touch-action: manipulation;
+}
+.workspace-nav {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(198,161,91,.38) transparent;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x proximity;
+}
+.workspace-nav-link {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  gap: .65rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 3px;
+  background: rgba(23,23,23,.72);
+  padding: .75rem .95rem;
+  color: #c8c2b7;
+  font-size: .75rem;
+  line-height: 1.25rem;
+  transition: border-color .2s ease, background-color .2s ease, color .2s ease, transform .2s ease;
+  scroll-snap-align: start;
+}
+.workspace-nav-link:hover {
+  border-color: var(--border-gold);
+  background: rgba(198,161,91,.08);
+  color: var(--cream);
+}
+.workspace-nav-link:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}
+.workspace-panel {
+  min-width: 0;
+  border: 1px solid var(--border-subtle);
+  background: linear-gradient(145deg,rgba(23,23,23,.52),rgba(11,11,11,.24));
+  padding: clamp(1rem,2.2vw,1.75rem);
+}
+@media (min-width: 1024px) {
+  .workspace-nav {
+    scrollbar-width: none;
+  }
+  .workspace-nav::-webkit-scrollbar {
+    display: none;
+  }
+  .workspace-nav-link {
+    width: 100%;
+  }
+}
+@media (max-width: 639px) {
+  .section-pad {
+    padding: 4.5rem 1.25rem;
+  }
+  .workspace-nav-link {
+    min-height: 42px;
+    padding: .65rem .85rem;
+    font-size: .6875rem;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+  }
+}
