@@ -2,7 +2,6 @@ import { NextResponse } from 'next/server';
 import { ObjectId, type ClientSession } from 'mongodb';
 import { auth } from '@/lib/auth';
 import { getClient, getDb } from '@/lib/db/client';
-import { ensureIndexes } from '@/lib/db/indexes';
 import { bookingSchema } from '@/lib/validations/booking';
 import { SALON_ID, addMinutes, bookingReference, toDhakaDateTime, getDhakaDate } from '@/lib/utils';
 import { rateLimit } from '@/lib/rate-limit';
@@ -60,7 +59,6 @@ export async function POST(request: Request) {
     const bookingEmail = accountEmail || String(input.email || '').trim().toLowerCase();
     if (input.date < getDhakaDate()) return NextResponse.json({ error: 'Please choose a future date.' }, { status: 400 });
     const db = await getDb();
-    await ensureIndexes();
     const services = await db.collection('services').find({ _id: { $in: uniqueServiceIds.map((id) => new ObjectId(id)) }, salonId, active: { $ne: false } }).toArray();
     if (services.length !== uniqueServiceIds.length) return NextResponse.json({ error: 'One or more selected services are no longer available.' }, { status: 404 });
     const serviceById = new Map(services.map((service) => [String(service._id), service]));
