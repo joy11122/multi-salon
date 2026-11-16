@@ -10,6 +10,7 @@ import { isStaffScheduled } from '@/lib/shifts';
 import { sendBookingNotifications } from '@/lib/notifications';
 import { captureOperationalError } from '@/lib/monitoring';
 import { expirePendingBookings, getPendingExpiryAt, getPendingExpiryMinutes } from '@/lib/booking-expiration';
+import { createBookingIdempotencyScope, createBookingRequestHash, isValidIdempotencyKey } from '@/lib/booking-idempotency';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -40,10 +41,11 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
-  if (!(await rateLimit(`booking:${ip}`, 6, 60_000)).allowed) return NextResponse.json({ error: 'Too many booking attempts. Please wait a moment.' }, { status: 429 });
   let session: ClientSession | undefined;
+  let idempotencyContext: { salonId: string; scope: string; key: string; requestHash: string } | undefined;
   try {
+    const idempotencyKey = request.headers.get('Idempotency-Key')?.trim();
+    if (!isValidIdempotencyKey(idempotencyKey)) return NextResponse.json({ error: 'A valid Idempotency-Key UUID header is required. Retry the same request with the same key.' }, { status: 400 });
     const parsed = bookingSchema.safeParse(await request.json());
     if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0]?.message || 'Invalid booking details.' }, { status: 400 });
     const input = parsed.data;
@@ -58,8 +60,19 @@ export async function POST(request: Request) {
     const userSession = await auth();
     const accountEmail = userSession?.user?.email ? String(userSession.user.email).trim().toLowerCase() : '';
     const bookingEmail = accountEmail || String(input.email || '').trim().toLowerCase();
-    if (input.date < getDhakaDate()) return NextResponse.json({ error: 'Please choose a future date.' }, { status: 400 });
+    const identity = accountEmail || bookingEmail || input.phone.replace(/[\s-]/g, '');
+    const idempotencyScope = createBookingIdempotencyScope(identity);
+    const requestHash = createBookingRequestHash({ salonId, identity: idempotencyScope, input });
+    idempotencyContext = { salonId, scope: idempotencyScope, key: idempotencyKey, requestHash };
     const db = await getDb();
+    const priorRequest = await db.collection('bookingIdempotency').findOne({ salonId, scope: idempotencyScope, key: idempotencyKey });
+    if (priorRequest) {
+      if (priorRequest.requestHash !== requestHash) return NextResponse.json({ error: 'This Idempotency-Key was already used for a different booking request. Start a new booking attempt.' }, { status: 409 });
+      return NextResponse.json({ success: true, ...priorRequest.response, replayed: true }, { status: 200 });
+    }
+    const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
+    if (!(await rateLimit(`booking:${ip}`, 6, 60_000)).allowed) return NextResponse.json({ error: 'Too many booking attempts. Please wait a moment.' }, { status: 429 });
+    if (input.date < getDhakaDate()) return NextResponse.json({ error: 'Please choose a future date.' }, { status: 400 });
     const services = await db.collection('services').find({ _id: { $in: uniqueServiceIds.map((id) => new ObjectId(id)) }, salonId, active: { $ne: false } }).toArray();
     if (services.length !== uniqueServiceIds.length) return NextResponse.json({ error: 'One or more selected services are no longer available.' }, { status: 404 });
     const serviceById = new Map(services.map((service) => [String(service._id), service]));
@@ -91,10 +104,13 @@ export async function POST(request: Request) {
     session = client.startSession();
     const bookingRef = bookingReference();
     let created: Record<string, unknown> | null = null;
+    let replayedRequest: { requestHash: string; response: Record<string, unknown> } | null = null;
     for (const barber of staff) {
       if (!(await isStaffScheduled({ salonId, staffId: barber._id, date: input.date, startAt, endAt }))) continue;
       try {
         await session.withTransaction(async () => {
+          const createdAt = new Date();
+          // Reserve the request key first inside the same transaction. Concurrent retries cannot allocate a different barber.
           const conflicting = await db.collection('appointments').findOne({ salonId, staffId: barber._id, status: { $nin: ['CANCELLED', 'REJECTED', 'EXPIRED'] }, startAt: { $lt: endAt }, endAt: { $gt: startAt } }, { session, projection: { _id: 1 } });
           if (conflicting) throw Object.assign(new Error('Selected barber is no longer available.'), { code: 'SLOT_BUSY' });
           const phone = input.phone.replace(/^\+?88/, '0');
@@ -106,7 +122,6 @@ export async function POST(request: Request) {
           const barberSlots: string[] = [];
           for (let minute = Math.floor(startAt.getTime() / 900000) * 900000; minute < endAt.getTime(); minute += 900000) barberSlots.push(new Date(minute).toISOString());
           await db.collection('slotLocks').insertMany(barberSlots.map((slotKey) => ({ salonId, staffId: barber._id, slotKey, appointmentRef: bookingRef, expiresAt: addMinutes(endAt, 24 * 60), createdAt: new Date() })), { session, ordered: true });
-          const createdAt = new Date();
           const appointment = {
             salonId, bookingRef, customerId: customer?._id, customerName: input.customerName, phone,
             email: bookingEmail, serviceId: orderedServices[0]._id, serviceIds: orderedServices.map((service) => service._id),
@@ -117,16 +132,35 @@ export async function POST(request: Request) {
           const result = await db.collection('appointments').insertOne(appointment, { session });
           created = { ...appointment, _id: result.insertedId };
           await db.collection('notifications').insertOne({ salonId, type: 'NEW_BOOKING', title: 'New appointment request', body: `${input.customerName} requested ${serviceName}`, read: false, createdAt: new Date() }, { session });
+          await db.collection('bookingIdempotency').insertOne({ salonId, scope: idempotencyScope, key: idempotencyKey, requestHash, response: { bookingRef, status: 'PENDING', message: 'Your appointment request has been received.', staffName: String(barber.name || '') }, createdAt }, { session });
         }, { readConcern: { level: 'snapshot' }, writeConcern: { w: 'majority' } });
         if (created) break;
       } catch (error) {
         const duplicate = error as { code?: number | string; keyPattern?: Record<string, unknown> };
         const lockConflict = duplicate.code === 11000 && Boolean(duplicate.keyPattern?.staffId || duplicate.keyPattern?.slotKey);
         if (duplicate.code !== 'SLOT_BUSY' && !lockConflict) throw error;
+        // With "any staff", do not fall through to another barber when this was an identical concurrent retry.
+        const committedRequest = await db.collection('bookingIdempotency').findOne({ salonId, scope: idempotencyScope, key: idempotencyKey });
+        if (committedRequest) {
+          replayedRequest = { requestHash: String(committedRequest.requestHash), response: committedRequest.response as Record<string, unknown> };
+          break;
+        }
       }
     }
+    if (replayedRequest) {
+      if (replayedRequest.requestHash !== requestHash) return NextResponse.json({ error: 'This Idempotency-Key was already used for a different booking request. Start a new booking attempt.' }, { status: 409 });
+      return NextResponse.json({ success: true, ...replayedRequest.response, replayed: true }, { status: 200 });
+    }
     const createdBooking = created as Record<string, unknown> | null;
-    if (!createdBooking) return NextResponse.json({ error: 'That time was just booked or the selected staff member is not scheduled. Please select another slot.' }, { status: 409 });
+    if (!createdBooking) {
+      // A concurrent identical request may lose the unique slot-lock race before it reaches the idempotency insert.
+      const committedRequest = await db.collection('bookingIdempotency').findOne({ salonId, scope: idempotencyScope, key: idempotencyKey });
+      if (committedRequest) {
+        if (committedRequest.requestHash !== requestHash) return NextResponse.json({ error: 'This Idempotency-Key was already used for a different booking request. Start a new booking attempt.' }, { status: 409 });
+        return NextResponse.json({ success: true, ...committedRequest.response, replayed: true }, { status: 200 });
+      }
+      return NextResponse.json({ error: 'That time was just booked or the selected staff member is not scheduled. Please select another slot.' }, { status: 409 });
+    }
     try {
       const salonProfile = salonId === SALON_ID
         ? await db.collection('settings').findOne({ _id: 'salon' as never }, { projection: { name: 1 } })
@@ -135,8 +169,20 @@ export async function POST(request: Request) {
     } catch (notificationError) {
       await captureOperationalError({ error: notificationError, route: '/api/booking', method: 'POST', salonId, severity: 'warning', metadata: { bookingRef, stage: 'post-booking-notification' } });
     }
-    return NextResponse.json({ success: true, bookingRef, status: 'PENDING', message: 'Your appointment request has been received.' }, { status: 201 });
+    return NextResponse.json({ success: true, bookingRef, status: 'PENDING', message: 'Your appointment request has been received.', staffName: String(createdBooking.staffName || '') }, { status: 201 });
   } catch (error) {
+    const mongoError = error as { code?: number };
+    if (mongoError.code === 11000 && idempotencyContext) {
+      try {
+        const existing = await (await getDb()).collection('bookingIdempotency').findOne({ salonId: idempotencyContext.salonId, scope: idempotencyContext.scope, key: idempotencyContext.key });
+        if (existing) {
+          if (existing.requestHash !== idempotencyContext.requestHash) return NextResponse.json({ error: 'This Idempotency-Key was already used for a different booking request. Start a new booking attempt.' }, { status: 409 });
+          return NextResponse.json({ success: true, ...existing.response, replayed: true }, { status: 200 });
+        }
+      } catch (replayError) {
+        await captureOperationalError({ error: replayError, route: '/api/booking', method: 'POST', severity: 'warning', metadata: { stage: 'idempotency-replay' } });
+      }
+    }
     await captureOperationalError({ error, route: '/api/booking', method: 'POST' });
     return NextResponse.json({ error: 'We could not complete your booking. Please try again.' }, { status: 500 });
   } finally { await session?.endSession(); }
