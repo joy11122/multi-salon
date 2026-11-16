@@ -7,16 +7,17 @@ const apply = process.argv.includes('--apply');
 const client = new MongoClient(uri, { serverSelectionTimeoutMS: 8000 });
 
 const duplicateChecks = [
-  ['salons.slug', 'salons', [{ $match: { slug: { $type: 'string', $ne: '' } } }, { $group: { _id: '$slug', count: { $sum: 1 } } }, { $match: { count: { $gt: 1 } } }]],
-  ['salonMemberships.salonId+email', 'salonMemberships', [{ $match: { salonId: { $type: 'string' }, email: { $type: 'string' } } }, { $group: { _id: { salonId: '$salonId', email: '$email' }, count: { $sum: 1 } } }, { $match: { count: { $gt: 1 } } }]],
-  ['salonMemberships.salonId+userId', 'salonMemberships', [{ $match: { salonId: { $type: 'string' }, userId: { $type: 'string' } } }, { $group: { _id: { salonId: '$salonId', userId: '$userId' }, count: { $sum: 1 } } }, { $match: { count: { $gt: 1 } } }]],
-  ['salonSettings.salonId', 'salonSettings', [{ $match: { salonId: { $type: 'string' } } }, { $group: { _id: '$salonId', count: { $sum: 1 } } }, { $match: { count: { $gt: 1 } } }]],
-  ['customers.salonId+phone', 'customers', [{ $match: { salonId: { $type: 'string' }, phone: { $type: 'string' } } }, { $group: { _id: { salonId: '$salonId', phone: '$phone' }, count: { $sum: 1 } } }, { $match: { count: { $gt: 1 } } }]],
-  ['appointments.bookingRef', 'appointments', [{ $match: { bookingRef: { $type: 'string' } } }, { $group: { _id: '$bookingRef', count: { $sum: 1 } } }, { $match: { count: { $gt: 1 } } }]],
-  ['slotLocks.salonId+staffId+slotKey', 'slotLocks', [{ $group: { _id: { salonId: '$salonId', staffId: '$staffId', slotKey: '$slotKey' }, count: { $sum: 1 } } }, { $match: { count: { $gt: 1 } } }]],
-  ['staff.salonId+email', 'staff', [{ $match: { salonId: { $type: 'string' }, email: { $type: 'string', $gt: '' } } }, { $group: { _id: { salonId: '$salonId', email: '$email' }, count: { $sum: 1 } } }, { $match: { count: { $gt: 1 } } }]],
-  ['staffShifts.salonId+staffId+dayOfWeek', 'staffShifts', [{ $group: { _id: { salonId: '$salonId', staffId: '$staffId', dayOfWeek: '$dayOfWeek' }, count: { $sum: 1 } } }, { $match: { count: { $gt: 1 } } }]],
-  ['refunds.activeLock', 'refunds', [{ $match: { activeLock: true } }, { $group: { _id: { salonId: '$salonId', paymentId: '$paymentId' }, count: { $sum: 1 } } }, { $match: { count: { $gt: 1 } } }]],
+  ['users.email', 'users', [{ $match: { email: { $exists: true } } }, { $group: { _id: '$email', count: { $sum: 1 } } }, { $match: { count: { $gt: 1 } } }],
+  ['salons.slug', 'salons', [{ $group: { _id: '$slug', count: { $sum: 1 } } }, { $match: { count: { $gt: 1 } } }],
+  ['salonMemberships.salonId+email', 'salonMemberships', [{ $group: { _id: { salonId: '$salonId', email: '$email' }, count: { $sum: 1 } } }, { $match: { count: { $gt: 1 } } }],
+  ['salonMemberships.salonId+userId', 'salonMemberships', [{ $match: { userId: { $type: 'string' } } }, { $group: { _id: { salonId: '$salonId', userId: '$userId' }, count: { $sum: 1 } } }, { $match: { count: { $gt: 1 } } }],
+  ['salonSettings.salonId', 'salonSettings', [{ $group: { _id: '$salonId', count: { $sum: 1 } } }, { $match: { count: { $gt: 1 } } }],
+  ['customers.salonId+phone', 'customers', [{ $group: { _id: { salonId: '$salonId', phone: '$phone' }, count: { $sum: 1 } } }, { $match: { count: { $gt: 1 } } }],
+  ['appointments.bookingRef', 'appointments', [{ $group: { _id: '$bookingRef', count: { $sum: 1 } } }, { $match: { count: { $gt: 1 } } }],
+  ['slotLocks.salonId+staffId+slotKey', 'slotLocks', [{ $group: { _id: { salonId: '$salonId', staffId: '$staffId', slotKey: '$slotKey' }, count: { $sum: 1 } } }, { $match: { count: { $gt: 1 } } }],
+  ['staff.salonId+email', 'staff', [{ $match: { email: { $type: 'string', $gt: '' } } }, { $group: { _id: { salonId: '$salonId', email: '$email' }, count: { $sum: 1 } } }, { $match: { count: { $gt: 1 } } }],
+  ['staffShifts.salonId+staffId+dayOfWeek', 'staffShifts', [{ $group: { _id: { salonId: '$salonId', staffId: '$staffId', dayOfWeek: '$dayOfWeek' }, count: { $sum: 1 } } }, { $match: { count: { $gt: 1 } } }],
+  ['refunds.activeLock', 'refunds', [{ $match: { activeLock: true } }, { $group: { _id: { salonId: '$salonId', paymentId: '$paymentId' }, count: { $sum: 1 } } }, { $match: { count: { $gt: 1 } } }],
 ];
 
 const indexDefinitions = [
