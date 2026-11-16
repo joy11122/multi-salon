@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, Clock3, LoaderCircle, Search, X } from 'lucide-react';
 
 type Service = { _id: string; name: string; description?: string; category?: string; price: number; durationMinutes: number };
@@ -31,6 +31,7 @@ export function BookingForm({ defaultName = '', defaultEmail = '', salonSlug, sa
   const [confirmation, setConfirmation] = useState<BookingConfirmation | null>(null);
   const [salon, setSalon] = useState<SalonDetails>({ name: 'Salon', phone: '', address: '' });
   const [step, setStep] = useState(1);
+  const idempotencyRef = useRef<{ fingerprint: string; key: string } | null>(null);
 
   const selectedServices = useMemo(() => selectedServiceIds.map((id) => services.find((item) => item._id === id)).filter((item): item is Service => Boolean(item)), [services, selectedServiceIds]);
   const totalPrice = selectedServices.reduce((sum, service) => sum + Number(service.price || 0), 0);
@@ -89,7 +90,12 @@ export function BookingForm({ defaultName = '', defaultEmail = '', salonSlug, sa
   async function submit() {
     setSubmitting(true); setError('');
     try {
-      const response = await fetch('/api/booking', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ serviceIds: selectedServiceIds, staffId, date, time, ...details, ...(selectedSalonSlug ? { salonSlug: selectedSalonSlug } : {}) }) });
+      const payload = { serviceIds: selectedServiceIds, staffId, date, time, ...details, ...(selectedSalonSlug ? { salonSlug: selectedSalonSlug } : {}) };
+      const fingerprint = JSON.stringify(payload);
+      if (!idempotencyRef.current || idempotencyRef.current.fingerprint !== fingerprint) {
+        idempotencyRef.current = { fingerprint, key: crypto.randomUUID() };
+      }
+      const response = await fetch('/api/booking', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Idempotency-Key': idempotencyRef.current.key }, body: JSON.stringify(payload) });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Booking failed.');
       setConfirmation({ bookingRef: data.bookingRef, salon, services: selectedServices, staffName: staffId === 'any' ? (data.staffName || 'Assigned by salon') : (barbers.find((barber) => barber._id === staffId)?.name || 'Assigned by salon'), date, time, customerName: details.customerName, phone: details.phone, email: details.email, notes: details.notes, totalPrice, totalDuration, status: data.status || 'PENDING', paymentStatus: data.paymentStatus || 'UNPAID' });
