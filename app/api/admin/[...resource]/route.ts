@@ -7,6 +7,7 @@ import { auth } from '@/lib/auth';
 import { findActiveSalonBySlug, requireSalonMembership, type SalonRole } from '@/lib/tenancy';
 import { SALON_ID } from '@/lib/utils';
 import { sendBookingCancellationNotice } from '@/lib/notifications';
+import { expirePendingBookings } from '@/lib/booking-expiration';
 
 const resources = new Set(['appointments', 'services', 'staff', 'customers', 'payments', 'reviews', 'offers', 'notifications', 'settings']);
 const collectionFor = (resource: string) => resource === 'settings' ? 'settings' : resource;
@@ -46,6 +47,7 @@ export async function GET(request: Request, context: { params: { resource: strin
   if (scope.role === 'STAFF' && resource !== 'appointments') return NextResponse.json({ error: 'You do not have permission to view this resource.' }, { status: 403 });
   try {
     const db = await getDb();
+    if (resource === 'appointments') await expirePendingBookings({ salonId: scope.salonId, limit: 500 });
     const { searchParams } = new URL(request.url);
     if (resource === 'settings') {
       const settings = scope.isTenant ? await db.collection('salonSettings').findOne({ salonId: scope.salonId }) : await db.collection('settings').findOne({ _id: 'salon' as never });
