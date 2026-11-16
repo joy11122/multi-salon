@@ -109,6 +109,8 @@ export async function POST(request: Request) {
       if (!(await isStaffScheduled({ salonId, staffId: barber._id, date: input.date, startAt, endAt }))) continue;
       try {
         await session.withTransaction(async () => {
+          const createdAt = new Date();
+          // Reserve the request key first inside the same transaction. Concurrent retries cannot allocate a different barber.
           const conflicting = await db.collection('appointments').findOne({ salonId, staffId: barber._id, status: { $nin: ['CANCELLED', 'REJECTED', 'EXPIRED'] }, startAt: { $lt: endAt }, endAt: { $gt: startAt } }, { session, projection: { _id: 1 } });
           if (conflicting) throw Object.assign(new Error('Selected barber is no longer available.'), { code: 'SLOT_BUSY' });
           const phone = input.phone.replace(/^\+?88/, '0');
@@ -120,7 +122,6 @@ export async function POST(request: Request) {
           const barberSlots: string[] = [];
           for (let minute = Math.floor(startAt.getTime() / 900000) * 900000; minute < endAt.getTime(); minute += 900000) barberSlots.push(new Date(minute).toISOString());
           await db.collection('slotLocks').insertMany(barberSlots.map((slotKey) => ({ salonId, staffId: barber._id, slotKey, appointmentRef: bookingRef, expiresAt: addMinutes(endAt, 24 * 60), createdAt: new Date() })), { session, ordered: true });
-          const createdAt = new Date();
           const appointment = {
             salonId, bookingRef, customerId: customer?._id, customerName: input.customerName, phone,
             email: bookingEmail, serviceId: orderedServices[0]._id, serviceIds: orderedServices.map((service) => service._id),
