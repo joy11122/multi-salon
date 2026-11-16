@@ -85,8 +85,8 @@ export async function POST(request: Request) {
     if (hours.closed) return NextResponse.json({ error: 'The salon is closed on this day.' }, { status: 409 });
     const startAt = toDhakaDateTime(input.date, input.time);
     const endAt = addMinutes(startAt, totalDuration);
-    await expirePendingBookings({ salonId, staffIds: staff.map((barber) => barber._id), overlap: { startAt, endAt }, limit: 100 });
     if (startAt <= new Date() || startAt < toDhakaDateTime(input.date, hours.open) || endAt > toDhakaDateTime(input.date, hours.close)) return NextResponse.json({ error: 'That time is outside the available booking hours.' }, { status: 400 });
+    await expirePendingBookings({ salonId, staffIds: staff.map((barber) => barber._id), overlap: { startAt, endAt }, limit: 100 });
     const client = await getClient();
     session = client.startSession();
     const bookingRef = bookingReference();
