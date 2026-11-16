@@ -41,8 +41,6 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
-  if (!(await rateLimit(`booking:${ip}`, 6, 60_000)).allowed) return NextResponse.json({ error: 'Too many booking attempts. Please wait a moment.' }, { status: 429 });
   let session: ClientSession | undefined;
   let idempotencyContext: { salonId: string; key: string; requestHash: string } | undefined;
   try {
@@ -70,6 +68,8 @@ export async function POST(request: Request) {
       if (priorRequest.requestHash !== requestHash) return NextResponse.json({ error: 'This Idempotency-Key was already used for a different booking request. Start a new booking attempt.' }, { status: 409 });
       return NextResponse.json({ success: true, ...priorRequest.response, replayed: true }, { status: 200 });
     }
+    const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
+    if (!(await rateLimit(`booking:${ip}`, 6, 60_000)).allowed) return NextResponse.json({ error: 'Too many booking attempts. Please wait a moment.' }, { status: 429 });
     if (input.date < getDhakaDate()) return NextResponse.json({ error: 'Please choose a future date.' }, { status: 400 });
     const services = await db.collection('services').find({ _id: { $in: uniqueServiceIds.map((id) => new ObjectId(id)) }, salonId, active: { $ne: false } }).toArray();
     if (services.length !== uniqueServiceIds.length) return NextResponse.json({ error: 'One or more selected services are no longer available.' }, { status: 404 });
@@ -138,7 +138,15 @@ export async function POST(request: Request) {
       }
     }
     const createdBooking = created as Record<string, unknown> | null;
-    if (!createdBooking) return NextResponse.json({ error: 'That time was just booked or the selected staff member is not scheduled. Please select another slot.' }, { status: 409 });
+    if (!createdBooking) {
+      // A concurrent identical request may lose the unique slot-lock race before it reaches the idempotency insert.
+      const committedRequest = await db.collection('bookingIdempotency').findOne({ salonId, key: idempotencyKey });
+      if (committedRequest) {
+        if (committedRequest.requestHash !== requestHash) return NextResponse.json({ error: 'This Idempotency-Key was already used for a different booking request. Start a new booking attempt.' }, { status: 409 });
+        return NextResponse.json({ success: true, ...committedRequest.response, replayed: true }, { status: 200 });
+      }
+      return NextResponse.json({ error: 'That time was just booked or the selected staff member is not scheduled. Please select another slot.' }, { status: 409 });
+    }
     try {
       const salonProfile = salonId === SALON_ID
         ? await db.collection('settings').findOne({ _id: 'salon' as never }, { projection: { name: 1 } })
