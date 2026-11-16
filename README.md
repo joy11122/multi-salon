@@ -11,6 +11,7 @@ Luxury men's grooming website and salon operations foundation for Khulna, Bangla
 - Guest booking: service → barber/any available → date/time → customer details → booking reference.
 - Availability in `Asia/Dhaka`; appointments are stored as UTC dates.
 - Transactional booking creation with unique 15-minute slot locks to prevent concurrent overlapping appointments for the same barber.
+- Booking idempotency: the booking form sends a UUID `Idempotency-Key`; retries return the original booking response, while key reuse with changed booking details is rejected.
 - Pending booking requests expire automatically after a salon-configurable hold period (5–120 minutes, default 15); expiration atomically changes status to EXPIRED and releases the appointment's slot locks.
 - Authentication: Google OAuth (optional) and email/password, plus guest booking.
 - Role-aware admin and staff workspaces; admin email allowlist via `ADMIN_EMAILS`.
@@ -82,7 +83,7 @@ npm run build
 
 ## Booking consistency design
 
-The server validates every booking request, calculates its UTC start/end from the requested Dhaka wall-clock time, and attempts a MongoDB transaction. It inserts one unique lock per 15-minute interval for the selected barber. A unique compound index on `(salonId, staffId, slotKey)` makes competing overlapping bookings conflict even when they begin at different times. The appointment and locks commit together. Cancellation/rejection releases the locks. Atlas transactions and index creation are required for this guarantee.
+The server validates every booking request, calculates its UTC start/end from the requested Dhaka wall-clock time, and attempts a MongoDB transaction. It inserts one unique lock per 15-minute interval for the selected barber. A unique compound index on `(salonId, staffId, slotKey)` makes competing overlapping bookings conflict even when they begin at different times. The appointment, locks and idempotency response commit together. A unique `(salonId, key)` index prevents duplicate request commits; retries with the same request replay the original booking result, while a changed payload returns HTTP 409. Keys are retained without TTL so a late retry cannot create a second appointment. Cancellation/rejection releases the locks. Atlas transactions and index creation are required for this guarantee.
 
 ## Roles and authentication
 
