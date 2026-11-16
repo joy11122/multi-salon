@@ -51,7 +51,7 @@ describe('booking idempotency', () => {
     }));
   });
 
-  it('scopes the hash to the salon and signed-in identity', () => {
+  it('scopes the hash to the salon and request identity', () => {
     expect(createBookingRequestHash(input)).not.toBe(createBookingRequestHash({ ...input, salonId: 'another-salon' }));
     expect(createBookingRequestHash(input)).not.toBe(createBookingRequestHash({ ...input, accountEmail: 'other@example.com' }));
   });
