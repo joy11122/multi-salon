@@ -104,6 +104,7 @@ export async function POST(request: Request) {
     session = client.startSession();
     const bookingRef = bookingReference();
     let created: Record<string, unknown> | null = null;
+    let replayedRequest: { requestHash: string; response: Record<string, unknown> } | null = null;
     for (const barber of staff) {
       if (!(await isStaffScheduled({ salonId, staffId: barber._id, date: input.date, startAt, endAt }))) continue;
       try {
@@ -137,7 +138,17 @@ export async function POST(request: Request) {
         const duplicate = error as { code?: number | string; keyPattern?: Record<string, unknown> };
         const lockConflict = duplicate.code === 11000 && Boolean(duplicate.keyPattern?.staffId || duplicate.keyPattern?.slotKey);
         if (duplicate.code !== 'SLOT_BUSY' && !lockConflict) throw error;
+        // With "any staff", do not fall through to another barber when this was an identical concurrent retry.
+        const committedRequest = await db.collection('bookingIdempotency').findOne({ salonId, scope: idempotencyScope, key: idempotencyKey });
+        if (committedRequest) {
+          replayedRequest = { requestHash: String(committedRequest.requestHash), response: committedRequest.response as Record<string, unknown> };
+          break;
+        }
       }
+    }
+    if (replayedRequest) {
+      if (replayedRequest.requestHash !== requestHash) return NextResponse.json({ error: 'This Idempotency-Key was already used for a different booking request. Start a new booking attempt.' }, { status: 409 });
+      return NextResponse.json({ success: true, ...replayedRequest.response, replayed: true }, { status: 200 });
     }
     const createdBooking = created as Record<string, unknown> | null;
     if (!createdBooking) {
