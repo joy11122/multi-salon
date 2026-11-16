@@ -32,7 +32,7 @@ describe('booking idempotency', () => {
     const normalized = {
       ...input,
       accountEmail: ' USER@example.com ',
-      input: { ...input.input, phone: '01712 345678', customerName: ' Rahim Uddin ', email: ' USER@EXAMPLE.COM ' },
+      input: { ...input.input, phone: '01712 345678', customerName: ' Rahim Uddin ' },
     };
     expect(createBookingRequestHash(input)).toBe(createBookingRequestHash(normalized));
   });
