@@ -29,6 +29,7 @@ const indexDefinitions = [
   ['salonSettings', { salonId: 1 }, { unique: true }],
   ['customers', { salonId: 1, phone: 1 }, { unique: true }],
   ['appointments', { bookingRef: 1 }, { unique: true }],
+  ['appointments', { status: 1, pendingExpiresAt: 1 }, {}],
   ['appointments', { salonId: 1, staffId: 1, startAt: 1, endAt: 1, status: 1 }, {}],
   ['appointments', { salonId: 1, customerId: 1, createdAt: -1 }, {}],
   ['appointments', { salonId: 1, email: 1, startAt: -1 }, {}],
