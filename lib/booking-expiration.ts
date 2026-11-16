@@ -37,6 +37,7 @@ export async function expirePendingBookings(options: ExpirationOptions = {}) {
   const legacyCutoff = new Date(now.getTime() - DEFAULT_PENDING_HOLD_MINUTES * 60_000);
   const filter: Filter<Document> = {
     status: 'PENDING',
+    paymentStatus: { $nin: ['PAID', 'PARTIAL'] },
     $or: [
       { pendingExpiresAt: { $lte: now } },
       { pendingExpiresAt: { $exists: false }, createdAt: { $lte: legacyCutoff } },
