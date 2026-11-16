@@ -13,6 +13,7 @@ export function SettingsClient({ salonSlug }: { salonSlug?: string } = {}) {
   const [latitude, setLatitude] = useState('');
   const [longitude, setLongitude] = useState('');
   const [hours, setHours] = useState<Hours[]>(days.map(() => ({ open: '10:00', close: '20:00', closed: false })));
+  const [pendingBookingExpiryMinutes, setPendingBookingExpiryMinutes] = useState(15);
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
   const apiUrl = `/api/admin/settings${salonSlug ? `?salonSlug=${encodeURIComponent(salonSlug)}` : ''}`;
@@ -27,6 +28,8 @@ export function SettingsClient({ salonSlug }: { salonSlug?: string } = {}) {
       setLatitude(data.settings.latitude == null ? '' : String(data.settings.latitude));
       setLongitude(data.settings.longitude == null ? '' : String(data.settings.longitude));
       if (data.settings.openingHours?.length === 7) setHours(data.settings.openingHours);
+      const holdMinutes = Number(data.settings.pendingBookingExpiryMinutes);
+      setPendingBookingExpiryMinutes(Number.isInteger(holdMinutes) && holdMinutes >= 5 && holdMinutes <= 120 ? holdMinutes : 15);
     }).catch(() => { if (active) setMessage('Could not load saved settings.'); });
     return () => { active = false; };
   }, [apiUrl]);
@@ -60,7 +63,7 @@ export function SettingsClient({ salonSlug }: { salonSlug?: string } = {}) {
       const response = await fetch(apiUrl, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, phone, address, openingHours: hours, latitude: latitudeValue, longitude: longitudeValue }),
+        body: JSON.stringify({ name, phone, address, openingHours: hours, pendingBookingExpiryMinutes, latitude: latitudeValue, longitude: longitudeValue }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Could not save settings.');
@@ -92,6 +95,13 @@ export function SettingsClient({ salonSlug }: { salonSlug?: string } = {}) {
             <a href="https://www.openstreetmap.org/" target="_blank" rel="noreferrer" className="mt-3 inline-block text-xs text-[#c6a15b] underline">OpenStreetMap to find coordinates</a>
           </div>
         )}
+        <div className="sm:col-span-2 border-t border-white/10 pt-5">
+          <label className="block max-w-sm text-xs text-[#c6a15b]">
+            PENDING BOOKING AUTO-EXPIRY (MINUTES)
+            <input type="number" min={5} max={120} step={1} required value={pendingBookingExpiryMinutes} onChange={(event) => setPendingBookingExpiryMinutes(Number(event.target.value))} className="mt-2 block min-h-11 w-full border border-white/15 bg-[#0b0b0b] p-3 text-sm text-white" />
+          </label>
+          <p className="mt-2 text-xs leading-5 text-[#999]">Unconfirmed booking requests automatically expire after this time. Choose between 5 and 120 minutes. Default: 15 minutes.</p>
+        </div>
         <div className="sm:col-span-2">
           <p className="eyebrow mb-4">WEEKLY OPENING HOURS · BANGLADESH TIME</p>
           <div className="space-y-1">
