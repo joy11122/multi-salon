@@ -60,7 +60,7 @@ export async function POST(request: Request) {
     const userSession = await auth();
     const accountEmail = userSession?.user?.email ? String(userSession.user.email).trim().toLowerCase() : '';
     const bookingEmail = accountEmail || String(input.email || '').trim().toLowerCase();
-    const idempotencyScope = accountEmail || bookingEmail || input.phone.replace(/[\\s-]/g, '');
+    const idempotencyScope = accountEmail || bookingEmail || input.phone.replace(/[\s-]/g, '');
     const requestHash = createBookingRequestHash({ salonId, accountEmail: idempotencyScope, input });
     idempotencyContext = { salonId, scope: idempotencyScope, key: idempotencyKey, requestHash };
     const db = await getDb();
