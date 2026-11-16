@@ -6,6 +6,7 @@ import { rateLimit } from '@/lib/rate-limit';
 import { findActiveSalonBySlug } from '@/lib/tenancy';
 import { getStaffScheduleChecker } from '@/lib/shifts';
 import { captureOperationalError } from '@/lib/monitoring';
+import { expirePendingBookings } from '@/lib/booking-expiration';
 
 export async function GET(request: Request) {
   const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
@@ -41,6 +42,7 @@ export async function GET(request: Request) {
     if (hours.closed) return NextResponse.json({ slots: [] });
     const start = toDhakaDateTime(date, hours.open);
     const close = toDhakaDateTime(date, hours.close);
+    await expirePendingBookings({ salonId, staffIds: staff.map((barber) => barber._id), overlap: { startAt: start, endAt: close }, limit: 250 });
     const now = new Date();
     const slots: { time: string; staffId: string; staffName: string }[] = [];
     for (const barber of staff) {
@@ -49,7 +51,7 @@ export async function GET(request: Request) {
         if (cursor <= now) continue;
         const end = addMinutes(cursor, totalDuration);
         if (!isScheduled(cursor, end)) continue;
-        const busy = await db.collection('appointments').findOne({ salonId, staffId: barber._id, status: { $nin: ['CANCELLED', 'REJECTED'] }, startAt: { $lt: end }, endAt: { $gt: cursor } }, { projection: { _id: 1 } });
+        const busy = await db.collection('appointments').findOne({ salonId, staffId: barber._id, status: { $nin: ['CANCELLED', 'REJECTED', 'EXPIRED'] }, startAt: { $lt: end }, endAt: { $gt: cursor } }, { projection: { _id: 1 } });
         if (!busy) slots.push({ time: new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Dhaka', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(cursor), staffId: String(barber._id), staffName: barber.name });
       }
     }
