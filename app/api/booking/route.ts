@@ -42,7 +42,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   let session: ClientSession | undefined;
-  let idempotencyContext: { salonId: string; key: string; requestHash: string } | undefined;
+  let idempotencyContext: { salonId: string; scope: string; key: string; requestHash: string } | undefined;
   try {
     const idempotencyKey = request.headers.get('Idempotency-Key')?.trim();
     if (!isValidIdempotencyKey(idempotencyKey)) return NextResponse.json({ error: 'A valid Idempotency-Key UUID header is required. Retry the same request with the same key.' }, { status: 400 });
@@ -60,10 +60,11 @@ export async function POST(request: Request) {
     const userSession = await auth();
     const accountEmail = userSession?.user?.email ? String(userSession.user.email).trim().toLowerCase() : '';
     const bookingEmail = accountEmail || String(input.email || '').trim().toLowerCase();
-    const requestHash = createBookingRequestHash({ salonId, accountEmail, input });
-    idempotencyContext = { salonId, key: idempotencyKey, requestHash };
+    const idempotencyScope = accountEmail || bookingEmail || input.phone.replace(/[\\s-]/g, '');
+    const requestHash = createBookingRequestHash({ salonId, accountEmail: idempotencyScope, input });
+    idempotencyContext = { salonId, scope: idempotencyScope, key: idempotencyKey, requestHash };
     const db = await getDb();
-    const priorRequest = await db.collection('bookingIdempotency').findOne({ salonId, key: idempotencyKey });
+    const priorRequest = await db.collection('bookingIdempotency').findOne({ salonId, scope: idempotencyScope, key: idempotencyKey });
     if (priorRequest) {
       if (priorRequest.requestHash !== requestHash) return NextResponse.json({ error: 'This Idempotency-Key was already used for a different booking request. Start a new booking attempt.' }, { status: 409 });
       return NextResponse.json({ success: true, ...priorRequest.response, replayed: true }, { status: 200 });
@@ -128,7 +129,7 @@ export async function POST(request: Request) {
           const result = await db.collection('appointments').insertOne(appointment, { session });
           created = { ...appointment, _id: result.insertedId };
           await db.collection('notifications').insertOne({ salonId, type: 'NEW_BOOKING', title: 'New appointment request', body: `${input.customerName} requested ${serviceName}`, read: false, createdAt: new Date() }, { session });
-          await db.collection('bookingIdempotency').insertOne({ salonId, key: idempotencyKey, requestHash, response: { bookingRef, status: 'PENDING', message: 'Your appointment request has been received.', staffName: String(barber.name || '') }, createdAt }, { session });
+          await db.collection('bookingIdempotency').insertOne({ salonId, scope: idempotencyScope, key: idempotencyKey, requestHash, response: { bookingRef, status: 'PENDING', message: 'Your appointment request has been received.', staffName: String(barber.name || '') }, createdAt }, { session });
         }, { readConcern: { level: 'snapshot' }, writeConcern: { w: 'majority' } });
         if (created) break;
       } catch (error) {
@@ -140,7 +141,7 @@ export async function POST(request: Request) {
     const createdBooking = created as Record<string, unknown> | null;
     if (!createdBooking) {
       // A concurrent identical request may lose the unique slot-lock race before it reaches the idempotency insert.
-      const committedRequest = await db.collection('bookingIdempotency').findOne({ salonId, key: idempotencyKey });
+      const committedRequest = await db.collection('bookingIdempotency').findOne({ salonId, scope: idempotencyScope, key: idempotencyKey });
       if (committedRequest) {
         if (committedRequest.requestHash !== requestHash) return NextResponse.json({ error: 'This Idempotency-Key was already used for a different booking request. Start a new booking attempt.' }, { status: 409 });
         return NextResponse.json({ success: true, ...committedRequest.response, replayed: true }, { status: 200 });
@@ -160,7 +161,7 @@ export async function POST(request: Request) {
     const mongoError = error as { code?: number };
     if (mongoError.code === 11000 && idempotencyContext) {
       try {
-        const existing = await (await getDb()).collection('bookingIdempotency').findOne({ salonId: idempotencyContext.salonId, key: idempotencyContext.key });
+        const existing = await (await getDb()).collection('bookingIdempotency').findOne({ salonId: idempotencyContext.salonId, scope: idempotencyContext.scope, key: idempotencyContext.key });
         if (existing) {
           if (existing.requestHash !== idempotencyContext.requestHash) return NextResponse.json({ error: 'This Idempotency-Key was already used for a different booking request. Start a new booking attempt.' }, { status: 409 });
           return NextResponse.json({ success: true, ...existing.response, replayed: true }, { status: 200 });
