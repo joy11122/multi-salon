@@ -86,6 +86,7 @@ export function ensureIndexes(): Promise<void> {
         db.collection('salonSettings').createIndex({ salonId: 1 }, { unique: true }),
         customers.createIndex({ salonId: 1, phone: 1 }, { unique: true }),
         db.collection('appointments').createIndex({ bookingRef: 1 }, { unique: true }),
+        db.collection('bookingIdempotency').createIndex({ salonId: 1, key: 1 }, { unique: true }),
         db.collection('appointments').createIndex({ status: 1, pendingExpiresAt: 1 }),
         db.collection('appointments').createIndex({ salonId: 1, staffId: 1, startAt: 1, endAt: 1, status: 1 }),
         db.collection('appointments').createIndex({ salonId: 1, customerId: 1, createdAt: -1 }),
