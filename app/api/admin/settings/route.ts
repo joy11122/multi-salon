@@ -18,6 +18,7 @@ const schema = z.object({
   phone: z.string().trim().max(30),
   address: z.string().trim().max(300),
   openingHours: z.array(day).length(7),
+  pendingBookingExpiryMinutes: z.number().int().min(5).max(120).default(15),
   latitude: coordinate.min(-90).max(90).nullable().optional(),
   longitude: coordinate.min(-180).max(180).nullable().optional(),
 }).strict();
@@ -71,7 +72,7 @@ export async function PATCH(request: Request) {
   try {
     const parsed = schema.safeParse(await request.json());
     if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0]?.message || 'Invalid settings.' }, { status: 400 });
-    const { openingHours, latitude, longitude, ...profile } = parsed.data;
+    const { openingHours, pendingBookingExpiryMinutes, latitude, longitude, ...profile } = parsed.data;
     for (const hours of openingHours) {
       if (!hours.closed && hours.open >= hours.close) {
         return NextResponse.json({ error: 'Closing time must be later than opening time.' }, { status: 400 });
@@ -97,13 +98,13 @@ export async function PATCH(request: Request) {
       await db.collection('salons').updateOne({ salonId: access.salonId, status: 'ACTIVE' }, update);
       await db.collection('salonSettings').updateOne(
         { salonId: access.salonId },
-        { $set: { openingHours, updatedAt: now }, $setOnInsert: { salonId: access.salonId, timezone: 'Asia/Dhaka', createdAt: now } },
+        { $set: { openingHours, pendingBookingExpiryMinutes, updatedAt: now }, $setOnInsert: { salonId: access.salonId, timezone: 'Asia/Dhaka', createdAt: now } },
         { upsert: true },
       );
     } else {
       await db.collection('settings').updateOne(
         { _id: 'salon' as never },
-        { $set: { ...profile, openingHours, salonId: access.salonId, updatedAt: now } },
+        { $set: { ...profile, openingHours, pendingBookingExpiryMinutes, salonId: access.salonId, updatedAt: now } },
         { upsert: true },
       );
     }

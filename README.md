@@ -10,7 +10,8 @@ Luxury men's grooming website and salon operations foundation for Khulna, Bangla
 - Tenant-scoped services, staff, customers, appointments, payments, settings and audit records; membership roles are OWNER, ADMIN, MANAGER and STAFF.
 - Guest booking: service → barber/any available → date/time → customer details → booking reference.
 - Availability in `Asia/Dhaka`; appointments are stored as UTC dates.
-- Transactional booking creation with 15-minute unique slot locks to prevent concurrent overlapping appointments for the same barber.
+- Transactional booking creation with unique 15-minute slot locks to prevent concurrent overlapping appointments for the same barber.
+- Pending booking requests expire automatically after a salon-configurable hold period (5–120 minutes, default 15); expiration atomically changes status to EXPIRED and releases the appointment's slot locks.
 - Authentication: Google OAuth (optional) and email/password, plus guest booking.
 - Role-aware admin and staff workspaces; admin email allowlist via `ADMIN_EMAILS`.
 - Admin tools: appointments, services, staff, customers, payments, notifications, offers, reviews, reports and salon opening hours/profile.
@@ -72,6 +73,12 @@ npm run build
 - Salon-owned records are scoped by `salonId`. Customer phone uniqueness is scoped to `(salonId, phone)`, so the same person may be a customer of multiple salons.
 - The original `/admin` workspace remains the legacy single-salon administration route for the existing `SALON_ID`. New salons must use their slug-scoped workspace.
 - The existing production database must be migrated before the legacy salon appears in the public directory or its new slug-scoped workspace works. Take a verified backup, configure `SALON_ID`, `SALON_SLUG`, `SALON_NAME` and `ADMIN_EMAILS`, then run `npm run db:migrate:multi-tenant` for a dry run. Review the document counts and duplicate phone report. Only after the backup and review, run `node scripts/migrate-multi-tenant.mjs --apply` against the intended database. This migration assigns legacy records missing `salonId` to the legacy salon, copies settings, creates owner/staff memberships and replaces the global customer phone index. Never run `--apply` against a database containing unrelated applications or unreviewed tenant data.
+
+## Pending booking expiry
+
+- Configure the pending hold duration in the salon Settings page. New requests persist an absolute `pendingExpiresAt` timestamp so later setting changes do not alter existing bookings.
+- Expired requests are cleaned during availability checks, new booking attempts and admin appointment-list requests, so a stale PENDING record cannot block a slot while the app is being used.
+- A protected `/api/cron/expire-pending-bookings` endpoint performs background recovery. Set `CRON_SECRET` in Vercel. The included daily Vercel Cron is a low-plan-compatible safety sweep; a more frequent schedule requires a plan that supports sub-daily Cron Jobs.
 
 ## Booking consistency design
 
